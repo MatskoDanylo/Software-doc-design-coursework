@@ -22,8 +22,5 @@ class Base(DeclarativeBase):
 
 
 def get_db() -> Iterator[Session]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    with SessionLocal() as session, session.begin():
+        yield session

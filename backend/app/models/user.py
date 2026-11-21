@@ -21,7 +21,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default=Role.USER)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+    profile: Mapped["Profile"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined"
+    )
 
 
 class Profile(Base):
