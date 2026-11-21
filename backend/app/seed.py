@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.security import hash_password
-from app.models import Plan, PlanCode, Profile, Role, User
+from app.models import Plan, PlanCode, Role
 from app.repositories.plans import PlanRepository
 from app.repositories.users import UserRepository
+from app.schemas.common import normalize_email
+from app.services.users import UserService
 
 PLANS: tuple[dict[str, Any], ...] = (
     {"code": PlanCode.FREE, "name": "Free", "price_month": Decimal("0.00"), "ads_enabled": True, "max_height": 720},
@@ -28,16 +29,10 @@ def seed_plans(session: Session) -> None:
 
 
 def seed_admin(session: Session, email: str, password: str) -> None:
-    repo = UserRepository(session)
-    email = email.strip().lower()
-    admin = repo.get_by_email(email)
+    users = UserRepository(session)
+    admin = users.get_by_email(normalize_email(email))
     if admin is None:
-        repo.add(User(
-            email=email,
-            password_hash=hash_password(password),
-            role=Role.ADMIN,
-            profile=Profile(display_name="Administrator"),
-        ))
+        UserService(users).create(email, password, "Administrator", Role.ADMIN)
     elif admin.role != Role.ADMIN:
         admin.role = Role.ADMIN
 
