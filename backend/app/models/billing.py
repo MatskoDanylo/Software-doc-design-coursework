@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,11 +8,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
 
+class PlanCode(StrEnum):
+    FREE = "free"
+    PREMIUM = "premium"
+
+
 class Plan(Base):
     __tablename__ = "plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(30), unique=True)  # free | premium
+    code: Mapped[str] = mapped_column(String(30), unique=True)
     name: Mapped[str] = mapped_column(String(80))
     price_month: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
     ads_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
