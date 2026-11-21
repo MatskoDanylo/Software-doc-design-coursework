@@ -4,3 +4,5 @@ const base =
 export const buttonPrimary = `${base} bg-gold text-screen hover:bg-gold-strong`
 export const buttonGhost = `${base} text-zinc-200 hover:bg-surface-raised`
 export const buttonOutline = `${base} border border-line text-zinc-200 hover:border-gold hover:text-gold`
+export const textLink = 'font-medium text-gold hover:text-gold-strong'
+export const card = 'rounded-2xl border border-line bg-surface p-6 sm:p-8'
