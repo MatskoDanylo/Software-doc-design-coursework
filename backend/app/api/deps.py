@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.models import Role, User
+from app.repositories.genre_repository import GenreRepository
+from app.repositories.title_repository import TitleRepository
 from app.repositories.users import UserRepository
 from app.services.auth import AuthService
+from app.services.catalog_service import CatalogService
 from app.services.users import UserService
 
 SessionDep = Annotated[Session, Depends(get_db, scope="function")]
@@ -27,6 +30,13 @@ def get_auth_service(session: SessionDep, user_service: UserServiceDep) -> AuthS
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def get_catalog_service(session: SessionDep) -> CatalogService:
+    return CatalogService(TitleRepository(session), GenreRepository(session))
+
+
+CatalogServiceDep = Annotated[CatalogService, Depends(get_catalog_service)]
 
 
 def get_current_user(credentials: BearerDep, auth: AuthServiceDep) -> User:
