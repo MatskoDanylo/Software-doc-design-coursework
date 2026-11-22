@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.core.db import SessionLocal
 from app.models import TitleKind
+from app.seed import seed_demo_catalog
 from tests.factories import add_season, make_genre, make_title
 from tests.helpers import assert_error
 
@@ -152,3 +153,13 @@ def test_countries_are_unique_and_sorted(client: TestClient, catalog: dict[str, 
 
     assert r.status_code == 200
     assert r.json() == ["France", "Germany", "USA"]
+
+
+def test_search_on_demo_catalog_handles_cyrillic(client: TestClient) -> None:
+    with SessionLocal() as session, session.begin():
+        seed_demo_catalog(session)
+
+    assert names(search(client, q="ТЕМНИЙ")) == ["Темний лицар"]
+    assert names(search(client, q="подорожі в ЧАСІ")) == ["Темрява"]
+    assert names(search(client, country="україна", kind="series")) == ["Слуга народу"]
+    assert search(client, page_size=50)["total"] == 31
