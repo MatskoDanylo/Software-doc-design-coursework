@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -43,12 +43,14 @@ class Title(Base):
         back_populates="title", cascade="all, delete-orphan", passive_deletes=True, order_by="Season.number"
     )
     video: Mapped["VideoAsset | None"] = relationship(
-        back_populates="title", uselist=False, foreign_keys="VideoAsset.title_id"
+        back_populates="title", uselist=False, foreign_keys="VideoAsset.title_id",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
 
 
 class Season(Base):
     __tablename__ = "seasons"
+    __table_args__ = (UniqueConstraint("title_id", "number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title_id: Mapped[int] = mapped_column(ForeignKey("titles.id", ondelete="CASCADE"))
@@ -62,6 +64,7 @@ class Season(Base):
 
 class Episode(Base):
     __tablename__ = "episodes"
+    __table_args__ = (UniqueConstraint("season_id", "number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id", ondelete="CASCADE"))
@@ -70,7 +73,8 @@ class Episode(Base):
 
     season: Mapped[Season] = relationship(back_populates="episodes")
     video: Mapped["VideoAsset | None"] = relationship(
-        back_populates="episode", uselist=False, foreign_keys="VideoAsset.episode_id"
+        back_populates="episode", uselist=False, foreign_keys="VideoAsset.episode_id",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
 
 
