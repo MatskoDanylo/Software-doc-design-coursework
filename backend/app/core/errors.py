@@ -34,3 +34,13 @@ class ConflictError(AppError):
 class UnprocessableError(AppError):
     status_code = 422
     code = "unprocessable"
+
+
+class PayloadTooLargeError(AppError):
+    status_code = 413
+    code = "payload_too_large"
+
+
+class UnsupportedMediaTypeError(AppError):
+    status_code = 415
+    code = "unsupported_media_type"
