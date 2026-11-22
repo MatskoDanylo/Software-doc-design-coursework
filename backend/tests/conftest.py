@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -12,6 +14,8 @@ TEST_DATABASE_URL = os.environ.get(
 if not make_url(TEST_DATABASE_URL).database.endswith("_test"):
     raise RuntimeError(f"Refusing to run tests against non-test database: {TEST_DATABASE_URL}")
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+MEDIA_DIR = Path(tempfile.mkdtemp(prefix="cinema-test-media-"))
+os.environ["MEDIA_DIR"] = str(MEDIA_DIR)
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
@@ -51,6 +55,7 @@ def _database() -> Iterator[None]:
     command.upgrade(Config(str(ALEMBIC_INI)), "head")
     yield
     engine.dispose()
+    shutil.rmtree(MEDIA_DIR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
