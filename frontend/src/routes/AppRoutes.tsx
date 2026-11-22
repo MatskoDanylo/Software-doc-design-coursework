@@ -1,11 +1,13 @@
 import { Route, Routes } from 'react-router-dom'
 import Layout from '../components/Layout'
 import AdminPage from '../pages/AdminPage'
+import CatalogPage from '../pages/CatalogPage'
 import HomePage from '../pages/HomePage'
 import LoginPage from '../pages/LoginPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import ProfilePage from '../pages/ProfilePage'
 import RegisterPage from '../pages/RegisterPage'
+import TitleDetailsPage from '../pages/TitleDetailsPage'
 import AdminRoute from './AdminRoute'
 import GuestRoute from './GuestRoute'
 import ProtectedRoute from './ProtectedRoute'
@@ -15,6 +17,8 @@ export default function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="catalog" element={<CatalogPage />} />
+        <Route path="titles/:id" element={<TitleDetailsPage />} />
         <Route element={<GuestRoute />}>
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
