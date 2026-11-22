@@ -81,7 +81,7 @@ erDiagram
 Router ──> PlaybackService ──> PlaybackProxy ──> (RealPlayback) HLS manifest
                                    │  перевіряє SubscriptionPlan (Factory Method → PlanPolicy)
                                    └─ повертає: дозволені якості, прапорець реклами
-Router ──> CatalogService ──> TitleQueryBuilder ──> TitleRepository
+Router ──> CatalogService (Director) ──> TitleQueryBuilder ──build()──> TitleQuery ──> TitleRepository
 Router ──> RecommendationService ──> RecommendationStrategy (Genre | Popularity | Hybrid)
 Router ──> BillingService ──> PaymentGateway (Adapter → MockGateway: success/pending/failed)
                     │ успіх
@@ -95,6 +95,115 @@ Reports: ReportGenerator (Template Method) ──> PopularTitles | UserActivity 
 
 GRASP: Controller (роутери), Information Expert (політика плану знає про рекламу і якість), Low Coupling / High Cohesion
 (шари), Polymorphism (стратегії, шлюзи), Pure Fabrication (EventBus), Protected Variations (інтерфейс шлюзу).
+
+### 3.1 Builder — пошук і фільтри каталогу
+
+Файл: `backend/app/patterns/title_query_builder.py`. Тести: `backend/tests/test_title_query_builder.py`.
+
+**Проблема.** `GET /api/titles` має десять необов'язкових параметрів: текст, жанри, роки «від» і «до», країна, тип,
+мінімальний рейтинг, сортування, напрям, сторінка. Будь-яка їх комбінація допустима. Якщо збирати SQL-запит
+умовами `if` у роутері чи репозиторії, виходить довгий метод, у якому змішано HTTP, бізнес-правила і ORM. Сигнатура
+`search(q, genres, year_from, year_to, ...)` розростається, а кожен новий фільтр вимагає змін у кількох шарах.
+
+**Рішення.** Запит будується покроково: кожен крок додає одну умову і повертає сам білдер (fluent-інтерфейс), а
+`build()` віддає готовий продукт — пару запитів «записи сторінки» і «загальна кількість» з однаковими умовами.
+
+```mermaid
+classDiagram
+    direction LR
+    class CatalogService {
+        <<Director>>
+        +build_query(filters: TitleFilters) TitleQuery
+        +search(filters: TitleFilters) TitlePage
+    }
+    class TitleQueryBuilder {
+        <<Builder>>
+        -conditions: list
+        -order: list
+        -page: int
+        -page_size: int
+        +with_text(text) TitleQueryBuilder
+        +with_genres(genre_ids) TitleQueryBuilder
+        +with_year_range(year_from, year_to) TitleQueryBuilder
+        +with_country(country) TitleQueryBuilder
+        +with_kind(kind) TitleQueryBuilder
+        +with_min_rating(min_rating) TitleQueryBuilder
+        +sort_by(field, order) TitleQueryBuilder
+        +paginate(page, page_size) TitleQueryBuilder
+        +build() TitleQuery
+    }
+    class TitleQuery {
+        <<Product>>
+        +items: Select
+        +count: Select
+        +page: int
+        +page_size: int
+    }
+    class TitleReader {
+        <<interface>>
+        +search(query: TitleQuery) tuple
+    }
+    class TitleRepository {
+        +search(query: TitleQuery) tuple
+    }
+    CatalogService ..> TitleQueryBuilder : керує кроками
+    TitleQueryBuilder ..> TitleQuery : створює
+    CatalogService --> TitleReader
+    TitleRepository ..|> TitleReader
+    TitleRepository ..> TitleQuery : виконує
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Builder | `TitleQueryBuilder` | знає, як кожен фільтр перетворюється на SQL-умову |
+| Director | `CatalogService.build_query` | знає, які кроки викликати для `TitleFilters` |
+| Product | `TitleQuery` | незмінний результат: запит сторінки, count-запит, межі сторінки |
+| Client | `TitleRepository.search` | виконує продукт, не знаючи, як його зібрано |
+
+**Використання в `CatalogService`.**
+
+```python
+query = (
+    TitleQueryBuilder()
+    .with_text(filters.q)
+    .with_genres(filters.genre)
+    .with_year_range(filters.year_from, filters.year_to)
+    .with_country(filters.country)
+    .with_kind(filters.kind)
+    .with_min_rating(filters.min_rating)
+    .sort_by(filters.sort, filters.order)
+    .paginate(filters.page, filters.page_size)
+    .build()
+)
+items, total = self.titles.search(query)
+```
+
+Потік: роутер валідує параметри в `TitleFilters` (Pydantic, 422) → `CatalogService` як директор збирає `TitleQuery` →
+репозиторій через абстракцію `TitleReader` виконує обидва запити → сервіс повертає `TitlePage {items, total, page, page_size}`.
+
+Ключові рішення всередині білдера:
+- незаданий параметр (`None`, порожній рядок, порожній список) не додає умови, тому директор викликає всі кроки без `if`;
+- жанри з'єднуються логікою «будь-який із» через підзапит `title_id IN (...)`, тому немає дублікатів рядків, а `total`
+  рахується правильно без `DISTINCT`;
+- текст шукається через `ILIKE` у назві й описі, символи `%` і `_` екрануються;
+- сортування стабільне: до будь-якого поля додається `id`, щоб сторінки не перекривались; для кожного поля є
+  природний напрям за замовчуванням (рейтинг, рік, популярність — за спаданням, назва — за зростанням);
+- білдер сам перевіряє інваріанти продукту (`page_size ≤ 50`, `year_from ≤ year_to`, рейтинг 0–10) і кидає 422, тож
+  некоректний запит неможливо зібрати незалежно від того, хто викликає білдер.
+
+**Чому патерн доречний.**
+- Об'єкт (запит) складний, має багато необов'язкових частин і будується покроково — це класичний випадок Builder.
+- SRP: SQL-логіка фільтрів зосереджена в одному класі; роутер працює лише з HTTP, сервіс — лише з порядком кроків,
+  репозиторій — лише з виконанням.
+- OCP: новий фільтр — це новий метод білдера і один рядок у директорі; репозиторій і роутер-контракт не змінюються.
+- DIP: `CatalogService` залежить від протоколу `TitleReader`, а не від SQLAlchemy-репозиторію.
+- Тестованість: кожен крок і їхні комбінації перевіряються окремо (44 unit-тести), без HTTP-шару.
+- Повторне використання: той самий білдер знадобиться для рекомендацій (вибірка кандидатів за жанрами й рейтингом)
+  та адмін-списків.
+
+Відмінність від канонічної схеми GoF: абстрактного інтерфейсу Builder немає, бо існує одне подання продукту
+(SQLAlchemy `Select`). Якщо з'явиться інше джерело пошуку (наприклад, повнотекстовий індекс), достатньо виділити
+інтерфейс із тими самими кроками — директор `CatalogService` при цьому не зміниться.
 
 ## 4. Оплата (mock)
 
