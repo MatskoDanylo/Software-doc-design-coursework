@@ -1,5 +1,10 @@
 import { Route, Routes } from 'react-router-dom'
+import AdminLayout from '../components/admin/AdminLayout'
 import Layout from '../components/Layout'
+import AdminGenresPage from '../pages/admin/AdminGenresPage'
+import AdminTitleCreatePage from '../pages/admin/AdminTitleCreatePage'
+import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
+import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
 import AdminPage from '../pages/AdminPage'
 import CatalogPage from '../pages/CatalogPage'
 import HomePage from '../pages/HomePage'
@@ -27,7 +32,13 @@ export default function AppRoutes() {
           <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route element={<AdminRoute />}>
-          <Route path="admin" element={<AdminPage />} />
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<AdminPage />} />
+            <Route path="titles" element={<AdminTitlesPage />} />
+            <Route path="titles/new" element={<AdminTitleCreatePage />} />
+            <Route path="titles/:id" element={<AdminTitleEditPage />} />
+            <Route path="genres" element={<AdminGenresPage />} />
+          </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
