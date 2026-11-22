@@ -13,7 +13,7 @@ export function useFormState<T extends Record<string, string>>(initial: T) {
     name,
     value: values[name],
     error: errors[name],
-    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { value } = event.target
       setValues((current) => ({ ...current, [name]: value }))
       setErrors((current) => ({ ...current, [name]: undefined }))
