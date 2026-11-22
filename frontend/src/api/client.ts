@@ -4,6 +4,10 @@ import { tokens } from './tokens'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
 
+export function apiUrl(path: string): string {
+  return /^https?:\/\//.test(path) ? path : `${API_URL}${path}`
+}
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 interface RequestOptions {
@@ -46,15 +50,16 @@ function isErrorBody(data: unknown): data is ApiErrorBody {
 }
 
 async function send(path: string, method: HttpMethod, body: unknown, accessToken: string | null): Promise<Response> {
+  const isForm = body instanceof FormData
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
   try {
-    return await fetch(`${API_URL}${path}`, {
+    return await fetch(apiUrl(path), {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, 'network_error', 'Network error')
