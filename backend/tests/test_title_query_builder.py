@@ -6,10 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal
 from app.core.errors import UnprocessableError
-from app.core.security import hash_password
-from app.models import Genre, Profile, TitleKind, User
+from app.models import Genre, TitleKind
 from app.patterns.title_query_builder import SortField, SortOrder, TitleQueryBuilder
-from tests.factories import add_views, make_genre, make_title
+from tests.factories import add_season, add_views, make_genre, make_title, make_user
 
 ALL = ["The Matrix", "Amelie", "Dark", "Inception", "100% Love", "Taxi"]
 
@@ -163,13 +162,12 @@ def test_sort_by(session: Session, field: SortField, order: SortOrder | None, ex
     assert names(session, TitleQueryBuilder().sort_by(field, order)) == expected
 
 
-def test_sort_by_popularity_uses_view_count(session: Session) -> None:
-    user = User(email="viewer@example.com", password_hash=hash_password("x"), profile=Profile(display_name="v"))
-    session.add(user)
-    session.flush()
+def test_sort_by_popularity_counts_distinct_viewers(session: Session) -> None:
+    first, second, third = (make_user(session, f"viewer{i}@example.com") for i in range(3))
     titles = {t.name: t for t in session.scalars(TitleQueryBuilder().build().items)}
-    add_views(session, titles["Taxi"], user.id, 3)
-    add_views(session, titles["Dark"], user.id, 1)
+    add_views(session, titles["Taxi"], [first.id, second.id])
+    for episode in add_season(session, titles["Dark"], 1, ["One", "Two", "Three"]).episodes:
+        add_views(session, titles["Dark"], [third.id], episode)
 
     assert names(session, TitleQueryBuilder().sort_by(SortField.POPULARITY))[:3] == ["Taxi", "Dark", "The Matrix"]
 

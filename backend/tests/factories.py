@@ -1,8 +1,10 @@
+from collections.abc import Iterable
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import Episode, Genre, Season, Title, TitleKind, WatchHistory
+from app.core.security import hash_password
+from app.models import Episode, Genre, Profile, Season, Title, TitleKind, User, WatchHistory
 
 
 def make_genre(session: Session, name: str) -> Genre:
@@ -37,6 +39,16 @@ def add_season(session: Session, title: Title, number: int, episode_names: list[
     return season
 
 
-def add_views(session: Session, title: Title, user_id: int, count: int) -> None:
-    session.add_all(WatchHistory(user_id=user_id, title_id=title.id) for _ in range(count))
+def add_views(session: Session, title: Title, user_ids: Iterable[int], episode: Episode | None = None) -> None:
+    session.add_all(
+        WatchHistory(user_id=user_id, title_id=title.id, episode_id=episode.id if episode else None)
+        for user_id in user_ids
+    )
     session.flush()
+
+
+def make_user(session: Session, email: str) -> User:
+    user = User(email=email, password_hash=hash_password("x"), profile=Profile(display_name=email.split("@")[0]))
+    session.add(user)
+    session.flush()
+    return user

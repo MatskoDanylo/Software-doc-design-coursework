@@ -43,7 +43,7 @@ def _escape_like(value: str) -> str:
 
 def _popularity() -> ColumnElement[int]:
     return (
-        select(func.count(WatchHistory.id))
+        select(func.count(WatchHistory.user_id.distinct()))
         .where(WatchHistory.title_id == Title.id)
         .correlate(Title)
         .scalar_subquery()
