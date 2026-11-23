@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     premium_days: int = 30
     admin_email: str = "admin@example.com"
     admin_password: str = "admin12345"
+    ffmpeg_path: str = "ffmpeg"
+    ffmpeg_timeout_sec: int = 3600
+    max_video_upload_mb: int = 2048
+    demo_font_file: str | None = None
 
 
 settings = Settings()
