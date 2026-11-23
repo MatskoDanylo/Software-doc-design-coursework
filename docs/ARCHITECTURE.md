@@ -57,7 +57,7 @@ erDiagram
     GENRE { int id string name }
     SEASON { int id int title_id int number }
     EPISODE { int id int season_id int number string name }
-    VIDEO_ASSET { int id string hls_path string status int title_id int episode_id }
+    VIDEO_ASSET { int id string hls_path string status text error_message int title_id int episode_id }
     FAVORITE { int user_id int title_id datetime added_at }
     WATCH_HISTORY { int id int user_id int title_id int episode_id int progress_sec bool finished datetime last_watched }
 ```
@@ -216,7 +216,36 @@ items, total = self.titles.search(query)
 
 ## 5. HLS
 
-Для кожного відео: `ffmpeg` → `media/<asset_id>/{360p,720p,1080p}/index.m3u8` + `master.m3u8`.
+**Конвертація.** `HlsTranscoder` (`services/hls_transcoder.py`) запускає `ffmpeg` через `subprocess` без shell
+(шлях — `FFMPEG_PATH`). Спершу `probe` читає роздільність, частоту кадрів і наявність аудіо, потім для кожного рендішну
+360p / 720p / 1080p, не вищого за джерело, окремий виклик кодує H.264 High + AAC (`-preset veryfast`, сегменти по 6 с,
+ключові кадри на межах сегментів). `master.m3u8` пише сам застосунок через `MasterPlaylist`: `BANDWIDTH` — виміряний пік
+бітрейту сегментів, `CODECS` відповідає явно заданим профілю й рівню (`avc1.64001f` для ≤720p, `avc1.640028` для 1080p,
+`mp4a.40.2` лише якщо в джерелі є звук). Результат спершу пишеться в тимчасову теку й лише після успіху замінює
+попередній, тож повторне завантаження не лишає напівзаписаних файлів.
+
+```
+media/
+├── uploads/<asset_id>/source.<mp4|mkv|mov>   джерело до завершення конвертації
+├── hls/<asset_id>/master.m3u8
+│   └── {360p,720p,1080p}/index.m3u8 + seg_NNN.ts
+└── ads/preroll/master.m3u8 + 720p/           реклама перед відео (один рендішн)
+```
+
+**Статуси `VideoAsset`:** `pending` (джерело прийнято) → `processing` → `ready` (`hls_path` заповнено) або `failed`
+(`error_message` — хвіст stderr ffmpeg). Одне відео на фільм або епізод (unique + check «рівно один власник»).
+При старті застосунку записи, що лишились у `processing` після перезапуску, переводяться у `failed` з повідомленням
+`interrupted by restart`.
+
+**Завантаження адміністратором.** `POST /api/admin/titles/{id}/video` (лише фільми) і `POST /api/admin/episodes/{id}/video`
+приймають multipart-файл mp4/mkv/mov (перевіряються розширення й сигнатура контейнера, ліміт `MAX_VIDEO_UPLOAD_MB`),
+повертають `202` зі статусом `pending` і ставлять `VideoProcessingService.process` у `BackgroundTasks`. Фонова задача
+працює з власною сесією БД, а ffmpeg виконується поза транзакцією. Стан видно в `GET /api/admin/video-assets/{id}`.
+
+**Демо без інтернету.** `python -m app.tools.demo_media [--titles 5] [--episodes 3] [--duration 40] [--force]` генерує
+через `lavfi` (testsrc2 + синус) кліпи 1080p з назвою тайтлу і пропускає їх тим самим шляхом, що й адмінське
+завантаження (`VideoUploadService` → `VideoProcessingService`). Окремо створюється 8-секундна реклама «Реклама».
+
 Бекенд віддає `master.m3u8` через проксі: Free бачить до 720p і рекламу перед фільмом, Premium — до 1080p без реклами.
 
 ## 6. План на 7 днів

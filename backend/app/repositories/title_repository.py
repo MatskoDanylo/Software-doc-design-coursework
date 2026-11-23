@@ -29,3 +29,8 @@ class TitleRepository(SqlAlchemyRepository[Title]):
 
     def list_countries(self) -> list[str]:
         return list(self.session.scalars(select(Title.country).distinct().order_by(Title.country)))
+
+    def list_movies(self, limit: int) -> Sequence[Title]:
+        return self.session.scalars(
+            select(Title).where(Title.kind == TitleKind.MOVIE.value).order_by(Title.id).limit(limit)
+        ).all()
