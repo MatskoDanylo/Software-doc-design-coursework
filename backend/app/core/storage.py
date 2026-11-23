@@ -5,6 +5,13 @@ from typing import BinaryIO, Protocol
 from app.core.errors import PayloadTooLargeError
 
 
+def resolve_inside(root: Path, relative: PurePosixPath) -> Path | None:
+    if relative.is_absolute():
+        return None
+    target = (root / relative).resolve()
+    return target if target.is_relative_to(root) and target != root else None
+
+
 class FileStorage(Protocol):
     def save(self, relative_path: str, data: bytes) -> str: ...
 
@@ -33,10 +40,7 @@ class LocalMediaStorage:
             target.unlink()
 
     def _resolve(self, relative: PurePosixPath) -> Path | None:
-        if relative.is_absolute():
-            return None
-        target = (self.root / relative).resolve()
-        return target if target.is_relative_to(self.root) and target != self.root else None
+        return resolve_inside(self.root, relative)
 
 
 class VideoFileStore(Protocol):
@@ -87,3 +91,31 @@ class LocalVideoStore:
 
     def _uploads(self, asset_id: int) -> Path:
         return self.root / "uploads" / str(asset_id)
+
+
+class LocalManifestSource:
+    def __init__(self, root: Path, url_prefix: str = "/media") -> None:
+        self.root = root.resolve()
+        self.url_prefix = url_prefix.rstrip("/")
+
+    def read(self, relative_path: str) -> str | None:
+        target = resolve_inside(self.root, PurePosixPath(relative_path))
+        if target is None or not target.is_file():
+            return None
+        return target.read_text(encoding="utf-8")
+
+    def base_url(self, relative_path: str) -> str:
+        return f"{self.url_prefix}/{PurePosixPath(relative_path).parent.as_posix()}"
+
+
+class LocalAdProvider:
+    PREROLL_PATH = "ads/preroll/master.m3u8"
+
+    def __init__(self, root: Path, url_prefix: str = "/media") -> None:
+        self.root = root.resolve()
+        self.url_prefix = url_prefix.rstrip("/")
+
+    def preroll_url(self) -> str | None:
+        if not (self.root / self.PREROLL_PATH).is_file():
+            return None
+        return f"{self.url_prefix}/{self.PREROLL_PATH}"

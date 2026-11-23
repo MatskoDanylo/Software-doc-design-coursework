@@ -1,7 +1,10 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 
-from app.models import Episode, Genre, Season, Title, TitleKind, VideoAsset
+from app.models import (
+    Episode, Genre, Plan, Season, Subscription, Title, TitleKind, VideoAsset, WatchHistory,
+)
 
 
 class EntityStore[T](Protocol):
@@ -36,3 +39,15 @@ class VideoAssetStore(EntityStore[VideoAsset], Protocol):
     def get_by_episode(self, episode_id: int) -> VideoAsset | None: ...
 
     def fail_processing(self, message: str) -> int: ...
+
+
+class PlanStore(EntityStore[Plan], Protocol):
+    def get_by_code(self, code: str) -> Plan | None: ...
+
+
+class SubscriptionStore(EntityStore[Subscription], Protocol):
+    def get_active(self, user_id: int, now: datetime) -> Subscription | None: ...
+
+
+class WatchHistoryStore(EntityStore[WatchHistory], Protocol):
+    def get_entry(self, user_id: int, title_id: int, episode_id: int | None) -> WatchHistory | None: ...

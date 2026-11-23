@@ -13,6 +13,12 @@ class PlanCode(StrEnum):
     PREMIUM = "premium"
 
 
+class SubscriptionStatus(StrEnum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class Plan(Base):
     __tablename__ = "plans"
 
@@ -30,7 +36,7 @@ class Subscription(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active | expired | cancelled
+    status: Mapped[str] = mapped_column(String(20), default=SubscriptionStatus.ACTIVE)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

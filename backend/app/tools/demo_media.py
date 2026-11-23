@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.storage import LocalVideoStore
+from app.core.storage import LocalAdProvider, LocalVideoStore
 from app.models import VideoAsset, VideoStatus
 from app.repositories.season_repository import EpisodeRepository
 from app.repositories.title_repository import TitleRepository
@@ -22,7 +22,7 @@ FONT_CANDIDATES = (
 )
 AD_CAPTION = "Реклама"
 AD_SECONDS = 8
-AD_DIR = Path("ads") / "preroll"
+AD_DIR = Path(LocalAdProvider.PREROLL_PATH).parent
 DEMO_SOURCE_MAX_BYTES = 1024 * 1024 * 1024
 
 
@@ -146,7 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.force or not (media_root / AD_DIR / "master.m3u8").is_file():
             build_ad(generator, transcoder, media_root, workdir)
-            print(f"Pre-roll ad: /media/{AD_DIR.as_posix()}/master.m3u8")
+            print(f"Pre-roll ad: /media/{LocalAdProvider.PREROLL_PATH}")
     except TranscodeError as exc:
         print(f"ffmpeg failed: {exc}")
         return 1

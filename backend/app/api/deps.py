@@ -1,17 +1,23 @@
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import ForbiddenError, UnauthorizedError
-from app.core.storage import FileStorage, LocalMediaStorage, LocalVideoStore, VideoFileStore
+from app.core.storage import (
+    FileStorage, LocalAdProvider, LocalManifestSource, LocalMediaStorage, LocalVideoStore, VideoFileStore,
+)
 from app.models import Role, User
+from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
 from app.repositories.genre_repository import GenreRepository
+from app.repositories.history_repository import WatchHistoryRepository
+from app.repositories.plans import PlanRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
+from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.title_repository import TitleRepository
 from app.repositories.users import UserRepository
 from app.repositories.video_asset_repository import VideoAssetRepository, video_asset_transaction
@@ -19,7 +25,9 @@ from app.services.admin_catalog_service import AdminCatalogService
 from app.services.auth import AuthService
 from app.services.catalog_service import CatalogService
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
+from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
+from app.services.subscription_service import SubscriptionService
 from app.services.users import UserService
 from app.services.video_service import VideoProcessingService, VideoUploadService
 
@@ -117,6 +125,43 @@ def get_current_user(credentials: BearerDep, auth: AuthServiceDep) -> User:
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_optional_user(credentials: BearerDep, auth: AuthServiceDep) -> User | None:
+    return None if credentials is None else auth.authenticate(credentials.credentials)
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
+def get_stream_user(
+    credentials: BearerDep,
+    auth: AuthServiceDep,
+    access_token: Annotated[str | None, Query(description="Access token for players that cannot set headers")] = None,
+) -> User | None:
+    token = credentials.credentials if credentials is not None else access_token
+    return None if token is None else auth.authenticate(token)
+
+
+StreamUser = Annotated[User | None, Depends(get_stream_user)]
+
+
+def get_subscription_service(session: SessionDep) -> SubscriptionService:
+    return SubscriptionService(SubscriptionRepository(session), PlanRepository(session))
+
+
+def get_playback_service(session: SessionDep) -> PlaybackService:
+    media_root = Path(settings.media_dir)
+    real = RealPlaybackService(
+        PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
+        VideoAssetRepository(session),
+        LocalManifestSource(media_root),
+        WatchHistoryRepository(session),
+    )
+    return PlaybackProxy(real, get_subscription_service(session), LocalAdProvider(media_root))
+
+
+PlaybackServiceDep = Annotated[PlaybackService, Depends(get_playback_service)]
 
 
 def require_admin(user: CurrentUser) -> User:
