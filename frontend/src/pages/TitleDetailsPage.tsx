@@ -7,8 +7,9 @@ import Poster from '../components/catalog/Poster'
 import RatingBadge from '../components/catalog/RatingBadge'
 import SeasonList from '../components/catalog/SeasonList'
 import PageLoader from '../components/PageLoader'
+import WatchButton from '../components/player/WatchButton'
 import StateMessage from '../components/StateMessage'
-import { buttonOutline, buttonPrimary, chipClass } from '../components/ui'
+import { buttonOutline, chipClass } from '../components/ui'
 import type { TitleDetail } from '../types/catalog'
 
 const KIND_LABEL = { movie: 'Фільм', series: 'Серіал' } as const
@@ -43,14 +44,7 @@ function TitleInfo({ title }: { title: TitleDetail }) {
         </ul>
       )}
       <p className="max-w-prose leading-relaxed text-zinc-300">{title.description || 'Опис відсутній'}</p>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" className={buttonPrimary} disabled aria-describedby="watch-hint">
-          ▶ Дивитись
-        </button>
-        <span id="watch-hint" className="text-xs text-muted">
-          Перегляд стане доступним найближчим часом
-        </span>
-      </div>
+      <WatchButton title={title} />
     </div>
   )
 }
