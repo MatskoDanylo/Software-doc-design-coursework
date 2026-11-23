@@ -1,0 +1,36 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+from app.models import User, WatchHistory
+from app.schemas.history import HistoryEntryRead, ProgressUpdate
+from app.services.favorite_service import mark_favorites
+from app.services.playback_target import PlaybackTargetResolver
+from app.services.ports import FavoriteReader, WatchHistoryStore
+
+
+@dataclass(frozen=True)
+class ProgressResult:
+    entry: HistoryEntryRead
+    just_finished: bool
+
+
+class HistoryService:
+    def __init__(self, history: WatchHistoryStore, targets: PlaybackTargetResolver, favorites: FavoriteReader) -> None:
+        self.history = history
+        self.targets = targets
+        self.favorites = favorites
+
+    def record_progress(self, user: User, data: ProgressUpdate) -> ProgressResult:
+        target = self.targets.resolve(data.title_id, data.episode_id)
+        previous = self.history.get_entry(user.id, target.title.id, target.episode_id)
+        was_finished = previous is not None and previous.finished
+        entry = self.history.upsert(user.id, target.title.id, target.episode_id, data.progress_sec, data.finished)
+        return ProgressResult(entry=self._read(user, [entry])[0], just_finished=data.finished and not was_finished)
+
+    def continue_watching(self, user: User, limit: int) -> list[HistoryEntryRead]:
+        return self._read(user, self.history.continue_watching(user.id, limit))
+
+    def _read(self, user: User, entries: Sequence[WatchHistory]) -> list[HistoryEntryRead]:
+        items = [HistoryEntryRead.model_validate(e) for e in entries]
+        titles = mark_favorites([i.title for i in items], self.favorites, user.id)
+        return [i.model_copy(update={"title": t}) for i, t in zip(items, titles, strict=True)]

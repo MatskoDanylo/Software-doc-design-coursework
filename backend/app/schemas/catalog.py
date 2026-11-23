@@ -23,6 +23,7 @@ class TitleRead(BaseModel):
     rating: float
     poster_url: str | None
     genres: list[GenreRead]
+    is_favorite: bool = False
 
 
 class EpisodeRead(BaseModel):

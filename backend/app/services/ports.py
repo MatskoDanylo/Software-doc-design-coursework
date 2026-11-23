@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Protocol
 
@@ -51,3 +51,21 @@ class SubscriptionStore(EntityStore[Subscription], Protocol):
 
 class WatchHistoryStore(EntityStore[WatchHistory], Protocol):
     def get_entry(self, user_id: int, title_id: int, episode_id: int | None) -> WatchHistory | None: ...
+
+    def upsert(
+        self, user_id: int, title_id: int, episode_id: int | None, progress_sec: int, finished: bool
+    ) -> WatchHistory: ...
+
+    def continue_watching(self, user_id: int, limit: int) -> Sequence[WatchHistory]: ...
+
+
+class FavoriteReader(Protocol):
+    def favorite_ids(self, user_id: int, title_ids: Iterable[int]) -> set[int]: ...
+
+
+class FavoriteStore(FavoriteReader, Protocol):
+    def add(self, user_id: int, title_id: int) -> None: ...
+
+    def remove(self, user_id: int, title_id: int) -> None: ...
+
+    def page(self, user_id: int, page: int, page_size: int) -> tuple[Sequence[Title], int]: ...

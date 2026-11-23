@@ -13,6 +13,7 @@ from app.core.storage import (
 )
 from app.models import Role, User
 from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
+from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.genre_repository import GenreRepository
 from app.repositories.history_repository import WatchHistoryRepository
 from app.repositories.plans import PlanRepository
@@ -24,6 +25,8 @@ from app.repositories.video_asset_repository import VideoAssetRepository, video_
 from app.services.admin_catalog_service import AdminCatalogService
 from app.services.auth import AuthService
 from app.services.catalog_service import CatalogService
+from app.services.favorite_service import FavoriteService
+from app.services.history_service import HistoryService
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
@@ -50,7 +53,7 @@ AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
 
 def get_catalog_service(session: SessionDep) -> CatalogService:
-    return CatalogService(TitleRepository(session), GenreRepository(session))
+    return CatalogService(TitleRepository(session), GenreRepository(session), FavoriteRepository(session))
 
 
 CatalogServiceDep = Annotated[CatalogService, Depends(get_catalog_service)]
@@ -162,6 +165,24 @@ def get_playback_service(session: SessionDep) -> PlaybackService:
 
 
 PlaybackServiceDep = Annotated[PlaybackService, Depends(get_playback_service)]
+
+
+def get_favorite_service(session: SessionDep) -> FavoriteService:
+    return FavoriteService(FavoriteRepository(session), TitleRepository(session))
+
+
+FavoriteServiceDep = Annotated[FavoriteService, Depends(get_favorite_service)]
+
+
+def get_history_service(session: SessionDep) -> HistoryService:
+    return HistoryService(
+        WatchHistoryRepository(session),
+        PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
+        FavoriteRepository(session),
+    )
+
+
+HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
 
 
 def require_admin(user: CurrentUser) -> User:

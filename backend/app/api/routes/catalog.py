@@ -2,20 +2,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CatalogServiceDep
+from app.api.deps import CatalogServiceDep, OptionalUser
 from app.schemas.catalog import GenreRead, TitleDetail, TitleFilters, TitlePage
 
 router = APIRouter(tags=["catalog"])
 
 
 @router.get("/titles")
-def search_titles(filters: Annotated[TitleFilters, Query()], catalog: CatalogServiceDep) -> TitlePage:
-    return catalog.search(filters)
+def search_titles(
+    filters: Annotated[TitleFilters, Query()], catalog: CatalogServiceDep, user: OptionalUser
+) -> TitlePage:
+    return catalog.search(filters, user.id if user else None)
 
 
-@router.get("/titles/{title_id}", response_model=TitleDetail)
-def get_title(title_id: int, catalog: CatalogServiceDep) -> object:
-    return catalog.get_title(title_id)
+@router.get("/titles/{title_id}")
+def get_title(title_id: int, catalog: CatalogServiceDep, user: OptionalUser) -> TitleDetail:
+    return catalog.get_title(title_id, user.id if user else None)
 
 
 @router.get("/genres", response_model=list[GenreRead])

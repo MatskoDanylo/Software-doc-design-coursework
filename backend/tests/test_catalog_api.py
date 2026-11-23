@@ -49,7 +49,7 @@ def test_titles_default_to_rating_desc_with_full_item_shape(client: TestClient, 
     assert body["items"][0] == {
         "id": catalog["matrix"], "kind": "movie", "name": "The Matrix", "description": "A hacker",
         "year": 1999, "country": "USA", "rating": 8.7, "poster_url": None,
-        "genres": [{"id": catalog["scifi"], "name": "Sci-Fi"}],
+        "genres": [{"id": catalog["scifi"], "name": "Sci-Fi"}], "is_favorite": False,
     }
     assert "seasons" not in body["items"][0]
 
