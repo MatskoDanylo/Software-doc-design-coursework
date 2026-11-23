@@ -13,7 +13,7 @@ from app.main import app
 from app.models import TitleKind, VideoAsset, VideoStatus
 from app.repositories.video_asset_repository import video_asset_transaction
 from app.services.hls_playlist import MasterPlaylist, Variant
-from app.services.hls_transcoder import DEFAULT_RENDITIONS, Rendition, TranscodeError
+from app.services.hls_transcoder import DEFAULT_RENDITIONS, Rendition, TranscodeError, TranscodeResult
 from app.services.video_service import INTERRUPTED_MESSAGE, VideoProcessingService
 from tests.factories import add_season, make_title
 from tests.helpers import assert_error
@@ -31,7 +31,7 @@ class FakeTranscoder:
 
     def transcode(
         self, source: Path, output_dir: Path, renditions: Sequence[Rendition] = DEFAULT_RENDITIONS
-    ) -> MasterPlaylist:
+    ) -> TranscodeResult:
         self.calls.append(source)
         self.received.append(source.read_bytes())
         if self.error is not None:
@@ -39,7 +39,7 @@ class FakeTranscoder:
         output_dir.mkdir(parents=True, exist_ok=True)
         playlist = MasterPlaylist.of([Variant(640, 360, 900000, "360p/index.m3u8")])
         (output_dir / "master.m3u8").write_text(playlist.render(), encoding="utf-8")
-        return playlist
+        return TranscodeResult(playlist=playlist, duration_sec=40)
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def test_movie_upload_is_transcoded_in_background(
     assert (body["title_id"], body["episode_id"], body["status"]) == (catalog["movie"], None, "pending")
     assert asset_status(client, body["id"], admin_headers) == {
         "id": body["id"], "title_id": catalog["movie"], "episode_id": None, "status": "ready",
-        "error_message": None, "hls_path": f"hls/{body['id']}/master.m3u8",
+        "error_message": None, "hls_path": f"hls/{body['id']}/master.m3u8", "duration_sec": 40,
     }
     assert [p.name for p in transcoder.calls] == ["source.mp4"]
     assert transcoder.received == [MP4]
@@ -105,8 +105,8 @@ def test_failed_transcoding_is_reported(
     asset_id = upload(client, f"/api/admin/titles/{catalog['movie']}/video", admin_headers).json()["id"]
 
     status = asset_status(client, asset_id, admin_headers)
-    assert (status["status"], status["error_message"], status["hls_path"]) == (
-        "failed", "ffmpeg exited with code 1: broken input", None,
+    assert (status["status"], status["error_message"], status["hls_path"], status["duration_sec"]) == (
+        "failed", "ffmpeg exited with code 1: broken input", None, None,
     )
 
 

@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.models import User, WatchHistory
+from app.models import User, VideoStatus, WatchHistory
 from app.schemas.history import HistoryEntryRead, ProgressUpdate
 from app.services.favorite_service import mark_favorites
 from app.services.playback_target import PlaybackTargetResolver
@@ -33,4 +33,12 @@ class HistoryService:
     def _read(self, user: User, entries: Sequence[WatchHistory]) -> list[HistoryEntryRead]:
         items = [HistoryEntryRead.model_validate(e) for e in entries]
         titles = mark_favorites([i.title for i in items], self.favorites, user.id)
-        return [i.model_copy(update={"title": t}) for i, t in zip(items, titles, strict=True)]
+        return [
+            item.model_copy(update={"title": title, "duration_sec": _ready_duration(entry)})
+            for item, title, entry in zip(items, titles, entries, strict=True)
+        ]
+
+
+def _ready_duration(entry: WatchHistory) -> int | None:
+    video = entry.episode.video if entry.episode is not None else entry.title.video
+    return video.duration_sec if video is not None and video.status == VideoStatus.READY else None

@@ -84,6 +84,7 @@ class VideoUploadService:
         asset.status = VideoStatus.PENDING
         asset.error_message = None
         asset.hls_path = None
+        asset.duration_sec = None
         return VideoAssetRead.model_validate(asset)
 
 
@@ -107,21 +108,28 @@ class VideoProcessingService:
             source = self.store.source_path(asset_id)
             if source is None:
                 raise TranscodeError("Source file is missing")
-            self.transcoder.transcode(source, self.store.hls_dir(asset_id))
+            result = self.transcoder.transcode(source, self.store.hls_dir(asset_id))
         except Exception as exc:
             if not isinstance(exc, TranscodeError):
                 logger.exception("Unexpected error while transcoding video asset %s", asset_id)
             return self._finish(asset_id, VideoStatus.FAILED, error_message=str(exc) or type(exc).__name__)
 
         self.store.remove_source(asset_id)
-        return self._finish(asset_id, VideoStatus.READY, hls_path=self.store.master_path(asset_id))
+        return self._finish(
+            asset_id, VideoStatus.READY, hls_path=self.store.master_path(asset_id), duration_sec=result.duration_sec
+        )
 
     def fail_interrupted(self) -> int:
         with self.transaction() as assets:
             return assets.fail_processing(INTERRUPTED_MESSAGE)
 
     def _finish(
-        self, asset_id: int, status: VideoStatus, error_message: str | None = None, hls_path: str | None = None
+        self,
+        asset_id: int,
+        status: VideoStatus,
+        error_message: str | None = None,
+        hls_path: str | None = None,
+        duration_sec: int | None = None,
     ) -> VideoStatus | None:
         with self.transaction() as assets:
             asset = assets.get(asset_id)
@@ -130,4 +138,5 @@ class VideoProcessingService:
             asset.status = status
             asset.error_message = error_message
             asset.hls_path = hls_path
+            asset.duration_sec = duration_sec
             return status

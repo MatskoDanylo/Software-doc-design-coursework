@@ -97,6 +97,7 @@ class VideoAsset(Base):
     hls_path: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(String(20), default=VideoStatus.PENDING)
     error_message: Mapped[str | None] = mapped_column(Text)
+    duration_sec: Mapped[int | None] = mapped_column(Integer)
 
     title: Mapped[Title | None] = relationship(back_populates="video", foreign_keys=[title_id])
     episode: Mapped[Episode | None] = relationship(back_populates="video", foreign_keys=[episode_id])

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
-from app.models import TitleKind, User, WatchHistory
+from app.models import TitleKind, User, VideoAsset, VideoStatus, WatchHistory
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.history_repository import WatchHistoryRepository
 from app.repositories.season_repository import EpisodeRepository
@@ -127,6 +127,26 @@ def test_history_marks_favorite_titles(
     assert body["title"]["is_favorite"] is True
     assert {e["title"]["name"]: e["title"]["is_favorite"] for e in continue_watching(client, user_headers)} == {
         "Heat": True, "Ronin": False,
+    }
+
+
+def test_entries_carry_duration_of_ready_video(
+    client: TestClient, user_headers: dict[str, str], catalog: dict[str, int]
+) -> None:
+    with SessionLocal() as session, session.begin():
+        session.add_all([
+            VideoAsset(title_id=catalog["heat"], status=VideoStatus.READY, duration_sec=5400),
+            VideoAsset(episode_id=catalog["e1"], status=VideoStatus.READY, duration_sec=2700),
+            VideoAsset(title_id=catalog["ronin"], status=VideoStatus.PROCESSING, duration_sec=None),
+        ])
+    put_progress(client, user_headers, title_id=catalog["heat"], progress_sec=60)
+    put_progress(client, user_headers, title_id=catalog["ronin"], progress_sec=60)
+    put_progress(client, user_headers, title_id=catalog["lost"], episode_id=catalog["pilot"], progress_sec=60)
+    body = put_progress(client, user_headers, title_id=catalog["dark"], episode_id=catalog["e1"], progress_sec=60)
+
+    assert body["duration_sec"] == 2700
+    assert {e["title"]["name"]: e["duration_sec"] for e in continue_watching(client, user_headers)} == {
+        "Heat": 5400, "Ronin": None, "Lost": None, "Dark": 2700,
     }
 
 

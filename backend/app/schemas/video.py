@@ -12,3 +12,4 @@ class VideoAssetRead(BaseModel):
     status: VideoStatus
     error_message: str | None
     hls_path: str | None
+    duration_sec: int | None

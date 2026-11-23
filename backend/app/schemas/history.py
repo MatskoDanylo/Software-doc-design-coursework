@@ -32,5 +32,6 @@ class HistoryEntryRead(BaseModel):
     title: TitleRead
     episode: HistoryEpisodeRead | None
     progress_sec: int
+    duration_sec: int | None = None
     finished: bool
     last_watched: datetime

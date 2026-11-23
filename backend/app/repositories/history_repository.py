@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 from sqlalchemy.orm import joinedload
 
-from app.models import Episode, WatchHistory
+from app.models import Episode, Title, WatchHistory
 from app.repositories.base import SqlAlchemyRepository
 
 UNIQUE_PROGRESS = "uq_watch_history_user_id"
@@ -44,7 +44,11 @@ class WatchHistoryRepository(SqlAlchemyRepository[WatchHistory]):
         return self.session.scalars(
             select(WatchHistory)
             .where(WatchHistory.id.in_(latest_per_title))
-            .options(joinedload(WatchHistory.title), joinedload(WatchHistory.episode).joinedload(Episode.season))
+            .options(
+                joinedload(WatchHistory.title).joinedload(Title.video),
+                joinedload(WatchHistory.episode).joinedload(Episode.season),
+                joinedload(WatchHistory.episode).joinedload(Episode.video),
+            )
             .order_by(WatchHistory.last_watched.desc(), WatchHistory.id.desc())
             .limit(limit)
         ).all()

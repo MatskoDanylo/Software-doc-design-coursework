@@ -45,6 +45,12 @@ class SourceInfo:
     has_audio: bool
 
 
+@dataclass(frozen=True)
+class TranscodeResult:
+    playlist: MasterPlaylist
+    duration_sec: int
+
+
 class TranscodeError(Exception):
     pass
 
@@ -52,7 +58,7 @@ class TranscodeError(Exception):
 class VideoTranscoder(Protocol):
     def transcode(
         self, source: Path, output_dir: Path, renditions: Sequence[Rendition] = DEFAULT_RENDITIONS
-    ) -> MasterPlaylist: ...
+    ) -> TranscodeResult: ...
 
 
 class HlsTranscoder:
@@ -62,7 +68,7 @@ class HlsTranscoder:
 
     def transcode(
         self, source: Path, output_dir: Path, renditions: Sequence[Rendition] = DEFAULT_RENDITIONS
-    ) -> MasterPlaylist:
+    ) -> TranscodeResult:
         info = self.probe(source)
         selected = [r for r in renditions if r.height <= info.height]
         if not selected:
@@ -71,15 +77,15 @@ class HlsTranscoder:
 
         staging = output_dir.with_name(f"{output_dir.name}.tmp-{uuid4().hex}")
         try:
-            variants = [self._encode(source, info, rendition, staging) for rendition in selected]
-            playlist = MasterPlaylist.of(variants)
+            encoded = [self._encode(source, info, rendition, staging) for rendition in selected]
+            playlist = MasterPlaylist.of(variant for variant, _ in encoded)
             (staging / "master.m3u8").write_text(playlist.render(), encoding="utf-8")
             if output_dir.exists():
                 shutil.rmtree(output_dir)
             staging.rename(output_dir)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
-        return playlist
+        return TranscodeResult(playlist=playlist, duration_sec=round(encoded[0][1]))
 
     def probe(self, source: Path) -> SourceInfo:
         probe_args = [self.ffmpeg_path, "-hide_banner", "-nostdin", "-i", str(source)]
@@ -96,7 +102,7 @@ class HlsTranscoder:
             has_audio=any("Stream #" in line and "Audio:" in line for line in stderr.splitlines()),
         )
 
-    def _encode(self, source: Path, info: SourceInfo, rendition: Rendition, root: Path) -> Variant:
+    def _encode(self, source: Path, info: SourceInfo, rendition: Rendition, root: Path) -> tuple[Variant, float]:
         target = root / rendition.name
         target.mkdir(parents=True)
         width = round(info.width * rendition.height / info.height / 2) * 2
@@ -119,13 +125,15 @@ class HlsTranscoder:
             (target / "index.m3u8").as_posix(),
         ], self.timeout_sec)
         codecs = f"{rendition.video_codec},{AUDIO_CODEC}" if info.has_audio else rendition.video_codec
-        return Variant(
+        peak_bandwidth, duration = _segment_stats(target / "index.m3u8")
+        variant = Variant(
             width=width,
             height=rendition.height,
-            bandwidth=_peak_bandwidth(target / "index.m3u8"),
+            bandwidth=peak_bandwidth,
             uri=f"{rendition.name}/index.m3u8",
             codecs=codecs,
         )
+        return variant, duration
 
 
 def run_ffmpeg(args: list[str], timeout_sec: int, check: bool = True) -> str:
@@ -142,14 +150,15 @@ def run_ffmpeg(args: list[str], timeout_sec: int, check: bool = True) -> str:
     return completed.stderr
 
 
-def _peak_bandwidth(index: Path) -> int:
-    peak, duration = 0, None
+def _segment_stats(index: Path) -> tuple[int, float]:
+    peak, total, duration = 0, 0.0, None
     for line in index.read_text(encoding="utf-8").splitlines():
         if match := _EXTINF.match(line):
             duration = float(match.group(1))
         elif line and not line.startswith("#") and duration:
             peak = max(peak, round((index.parent / line).stat().st_size * 8 / duration))
+            total += duration
             duration = None
     if peak == 0:
         raise TranscodeError(f"ffmpeg produced no segments in {index.parent.name}")
-    return peak
+    return peak, total

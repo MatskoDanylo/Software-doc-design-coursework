@@ -45,8 +45,10 @@ def test_transcode_skips_renditions_taller_than_source(
     output.mkdir(parents=True)
     (output / "stale.txt").write_text("old")
 
-    playlist = transcoder.transcode(clip_720p, output)
+    result = transcoder.transcode(clip_720p, output)
+    playlist = result.playlist
 
+    assert result.duration_sec == 2
     assert playlist.heights == [360, 720]
     assert [(v.width, v.codecs) for v in playlist.variants] == [
         (640, "avc1.64001f,mp4a.40.2"), (1280, "avc1.64001f,mp4a.40.2"),
@@ -65,7 +67,7 @@ def test_transcode_skips_renditions_taller_than_source(
 def test_transcode_without_audio_declares_video_codec_only(transcoder: HlsTranscoder, tmp_path: Path) -> None:
     source = make_clip(tmp_path / "silent.mp4", "640x360", seconds=1, audio=False)
 
-    playlist = transcoder.transcode(source, tmp_path / "out")
+    playlist = transcoder.transcode(source, tmp_path / "out").playlist
 
     assert [(v.height, v.codecs) for v in playlist.variants] == [(360, "avc1.64001f")]
 

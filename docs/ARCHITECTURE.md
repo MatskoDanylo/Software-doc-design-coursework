@@ -57,7 +57,7 @@ erDiagram
     GENRE { int id string name }
     SEASON { int id int title_id int number }
     EPISODE { int id int season_id int number string name }
-    VIDEO_ASSET { int id string hls_path string status text error_message int title_id int episode_id }
+    VIDEO_ASSET { int id string hls_path string status text error_message int duration_sec int title_id int episode_id }
     FAVORITE { int user_id int title_id datetime added_at }
     WATCH_HISTORY { int id int user_id int title_id int episode_id int progress_sec bool finished datetime last_watched }
 ```
@@ -87,6 +87,7 @@ erDiagram
   каскадно видаляє його прогрес.
 - `GET /api/history` («Продовжити перегляд») повертає незавершені записи з ненульовим прогресом: для серіалу лише
   останній переглянутий епізод (`DISTINCT ON (title_id)`), від найсвіжіших до старіших.
+  Кожен запис має `duration_sec` готового відео (або `null`), щоб інтерфейс показував прогрес-бар.
 - `HistoryService.record_progress` визначає перехід «не завершено → завершено» (`just_finished`). Це єдине місце,
   де в Дні 4 публікуватиметься подія `WatchFinished`.
 - Популярність у каталозі — кількість різних користувачів, які дивились тайтл (`COUNT(DISTINCT user_id)`), тому
@@ -431,7 +432,7 @@ media/
 └── ads/preroll/master.m3u8 + 720p/           реклама перед відео (один рендішн)
 ```
 
-**Статуси `VideoAsset`:** `pending` (джерело прийнято) → `processing` → `ready` (`hls_path` заповнено) або `failed`
+**Статуси `VideoAsset`:** `pending` (джерело прийнято) → `processing` → `ready` (`hls_path` і `duration_sec` — сума `#EXTINF` сегментів — заповнено) або `failed`
 (`error_message` — хвіст stderr ffmpeg). Одне відео на фільм або епізод (unique + check «рівно один власник»).
 При старті застосунку записи, що лишились у `processing` після перезапуску, переводяться у `failed` з повідомленням
 `interrupted by restart`.
