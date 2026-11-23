@@ -22,6 +22,11 @@ const MESSAGES: Record<string, string> = {
   unknown_genre: 'Один із жанрів більше не існує. Оновіть сторінку',
   payload_too_large: 'Файл завеликий: максимум 5 МБ',
   unsupported_media_type: 'Постер має бути у форматі JPEG, PNG або WebP',
+  video_not_ready: 'Відео для цього тайтлу ще не готове',
+  video_not_found: 'Відео не знайдено',
+  quality_not_available: 'Для вашого плану немає доступної якості відео',
+  episode_required: 'Оберіть епізод серіалу',
+  episode_not_allowed: 'У фільму немає епізодів',
 }
 
 export function errorMessage(error: unknown): string {
