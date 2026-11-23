@@ -32,6 +32,16 @@ def upload_episode_video(
     return asset
 
 
+@router.get("/titles/{title_id}/video")
+def get_title_video(title_id: int, uploads: VideoUploadServiceDep) -> VideoAssetRead:
+    return uploads.get_for_title(title_id)
+
+
+@router.get("/episodes/{episode_id}/video")
+def get_episode_video(episode_id: int, uploads: VideoUploadServiceDep) -> VideoAssetRead:
+    return uploads.get_for_episode(episode_id)
+
+
 @router.get("/video-assets/{asset_id}")
 def get_video_asset(asset_id: int, uploads: VideoUploadServiceDep) -> VideoAssetRead:
     return uploads.get_asset(asset_id)

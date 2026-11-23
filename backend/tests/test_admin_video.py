@@ -172,6 +172,32 @@ def test_upload_over_size_limit_is_rejected(
     assert transcoder.calls == []
 
 
+def test_current_video_can_be_read_by_title_and_episode(
+    client: TestClient, admin_headers: dict[str, str], catalog: dict[str, int], transcoder: FakeTranscoder
+) -> None:
+    movie = f"/api/admin/titles/{catalog['movie']}/video"
+    episode = f"/api/admin/episodes/{catalog['episode']}/video"
+    assert_error(client.get(movie, headers=admin_headers), 404, "video_asset_not_found")
+    assert_error(client.get(episode, headers=admin_headers), 404, "video_asset_not_found")
+
+    movie_asset = upload(client, movie, admin_headers).json()["id"]
+    episode_asset = upload(client, episode, admin_headers, "ep1.mkv", MKV).json()["id"]
+
+    current = client.get(movie, headers=admin_headers).json()
+    assert (current["id"], current["status"], current["duration_sec"]) == (movie_asset, "ready", 40)
+    assert client.get(episode, headers=admin_headers).json()["id"] == episode_asset
+
+
+@pytest.mark.parametrize(
+    ("path", "code"),
+    [("/api/admin/titles/999/video", "title_not_found"), ("/api/admin/episodes/999/video", "episode_not_found")],
+)
+def test_reading_video_of_unknown_owner_returns_404(
+    client: TestClient, admin_headers: dict[str, str], path: str, code: str
+) -> None:
+    assert_error(client.get(path, headers=admin_headers), 404, code)
+
+
 @pytest.mark.parametrize(
     ("path", "code"),
     [("/api/admin/titles/999/video", "title_not_found"), ("/api/admin/episodes/999/video", "episode_not_found")],
@@ -188,6 +214,7 @@ def test_video_endpoints_require_admin(
     assert_error(upload(client, f"/api/admin/titles/{catalog['movie']}/video", user_headers), 403, "forbidden")
     assert_error(upload(client, f"/api/admin/titles/{catalog['movie']}/video", {}), 401, "unauthorized")
     assert_error(client.get("/api/admin/video-assets/1", headers=user_headers), 403, "forbidden")
+    assert_error(client.get(f"/api/admin/titles/{catalog['movie']}/video", headers=user_headers), 403, "forbidden")
 
 
 def make_asset(owner_id: int, status: VideoStatus) -> int:

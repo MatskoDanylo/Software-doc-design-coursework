@@ -63,7 +63,20 @@ class VideoUploadService:
         return self._accept(asset, stream, extension)
 
     def get_asset(self, asset_id: int) -> VideoAssetRead:
-        asset = self.assets.get(asset_id)
+        return self._read(self.assets.get(asset_id))
+
+    def get_for_title(self, title_id: int) -> VideoAssetRead:
+        if self.titles.get(title_id) is None:
+            raise NotFoundError("Title not found", code="title_not_found")
+        return self._read(self.assets.get_by_title(title_id))
+
+    def get_for_episode(self, episode_id: int) -> VideoAssetRead:
+        if self.episodes.get(episode_id) is None:
+            raise NotFoundError("Episode not found", code="episode_not_found")
+        return self._read(self.assets.get_by_episode(episode_id))
+
+    @staticmethod
+    def _read(asset: VideoAsset | None) -> VideoAssetRead:
         if asset is None:
             raise NotFoundError("Video asset not found", code="video_asset_not_found")
         return VideoAssetRead.model_validate(asset)
