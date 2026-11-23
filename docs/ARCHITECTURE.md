@@ -290,6 +290,7 @@ classDiagram
         +manifest: MasterPlaylist
         +ads: AdBreak
         +resume_position_sec: int
+        +plan_code: str
     }
     class PlaybackRouter {
         <<Client>>
@@ -450,7 +451,7 @@ Premium — до 1080p без реклами. План визначає `Subscri
 
 | Запит | Відповідь |
 |---|---|
-| `GET /api/titles/{id}/playback?episode_id=` (Bearer) | `{manifest_url, ads: {enabled, preroll_url}, allowed_heights, resume_position_sec}` |
+| `GET /api/titles/{id}/playback?episode_id=` (Bearer) | `{plan, manifest_url, ads: {enabled, preroll_url}, allowed_heights, resume_position_sec}` |
 | `GET /api/playback/{asset_id}/master.m3u8` (Bearer або `?access_token=`) | відфільтрований master-плейлист, `Cache-Control: no-store` |
 
 Гість отримує 401, тайтл без готового відео — 404 `video_not_ready` з поясненням (не завантажено / ще обробляється /

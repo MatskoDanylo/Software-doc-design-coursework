@@ -31,6 +31,7 @@ class Playback:
     manifest: MasterPlaylist
     ads: AdBreak
     resume_position_sec: int
+    plan_code: str | None = None
 
 
 class PlaybackPolicyProvider(Protocol):
@@ -121,6 +122,7 @@ class PlaybackProxy(PlaybackService):
             playback,
             manifest=self._restrict(playback.manifest, policy),
             ads=AdBreak(enabled=preroll is not None, preroll_url=preroll),
+            plan_code=policy.plan_code,
         )
 
     def get_master_manifest(self, user: User | None, asset_id: int) -> MasterPlaylist:

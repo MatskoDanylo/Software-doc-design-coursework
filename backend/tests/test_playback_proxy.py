@@ -80,7 +80,7 @@ def test_free_plan_is_limited_to_720p_with_preroll() -> None:
 
     assert playback.manifest.heights == [360, 720]
     assert playback.ads == AdBreak(enabled=True, preroll_url=AD_URL)
-    assert (playback.asset_id, playback.resume_position_sec) == (7, 42)
+    assert (playback.asset_id, playback.resume_position_sec, playback.plan_code) == (7, 42, "free")
 
 
 def test_premium_plan_gets_1080p_without_ads() -> None:
@@ -88,6 +88,7 @@ def test_premium_plan_gets_1080p_without_ads() -> None:
 
     assert playback.manifest.heights == [360, 720, 1080]
     assert playback.ads == NO_ADS
+    assert playback.plan_code == "premium"
 
 
 def test_ads_are_disabled_when_no_preroll_exists() -> None:
@@ -185,6 +186,7 @@ def test_free_user_gets_720p_and_preroll(
     client: TestClient, viewer: dict[str, str], catalog: dict[str, int], preroll: None
 ) -> None:
     assert playback(client, catalog["movie"], viewer) == {
+        "plan": "free",
         "manifest_url": f"/api/playback/{catalog['asset']}/master.m3u8",
         "ads": {"enabled": True, "preroll_url": AD_URL},
         "allowed_heights": [360, 720],
@@ -205,6 +207,7 @@ def test_premium_user_gets_1080p_without_ads(
 
     body = playback(client, catalog["movie"], viewer)
 
+    assert body["plan"] == "premium"
     assert body["allowed_heights"] == [360, 720, 1080]
     assert body["ads"] == {"enabled": False, "preroll_url": None}
 
