@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -9,6 +9,13 @@ from app.core.db import Base
 class TitleKind(StrEnum):
     MOVIE = "movie"
     SERIES = "series"
+
+
+class VideoStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
 
 
 title_genres = Table(
@@ -80,12 +87,16 @@ class Episode(Base):
 
 class VideoAsset(Base):
     __tablename__ = "video_assets"
+    __table_args__ = (
+        CheckConstraint("(title_id IS NULL) <> (episode_id IS NULL)", name="single_owner"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    title_id: Mapped[int | None] = mapped_column(ForeignKey("titles.id", ondelete="CASCADE"))
-    episode_id: Mapped[int | None] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"))
+    title_id: Mapped[int | None] = mapped_column(ForeignKey("titles.id", ondelete="CASCADE"), unique=True)
+    episode_id: Mapped[int | None] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"), unique=True)
     hls_path: Mapped[str | None] = mapped_column(String(500))
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | processing | ready | failed
+    status: Mapped[str] = mapped_column(String(20), default=VideoStatus.PENDING)
+    error_message: Mapped[str | None] = mapped_column(Text)
 
     title: Mapped[Title | None] = relationship(back_populates="video", foreign_keys=[title_id])
     episode: Mapped[Episode | None] = relationship(back_populates="video", foreign_keys=[episode_id])

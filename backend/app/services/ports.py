@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from app.models import Episode, Genre, Season, Title, TitleKind
+from app.models import Episode, Genre, Season, Title, TitleKind, VideoAsset
 
 
 class EntityStore[T](Protocol):
@@ -28,3 +28,11 @@ class SeasonStore(EntityStore[Season], Protocol):
 
 class EpisodeStore(EntityStore[Episode], Protocol):
     def get_by_number(self, season_id: int, number: int) -> Episode | None: ...
+
+
+class VideoAssetStore(EntityStore[VideoAsset], Protocol):
+    def get_by_title(self, title_id: int) -> VideoAsset | None: ...
+
+    def get_by_episode(self, episode_id: int) -> VideoAsset | None: ...
+
+    def fail_processing(self, message: str) -> int: ...
