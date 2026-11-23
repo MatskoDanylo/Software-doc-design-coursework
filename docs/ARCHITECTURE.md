@@ -95,15 +95,15 @@ erDiagram
 ## 3. Патерни і взаємодія
 
 ```
-Router ──> PlaybackService ──> PlaybackProxy ──> (RealPlayback) HLS manifest
-                                   │  перевіряє SubscriptionPlan (Factory Method → PlanPolicy)
-                                   └─ повертає: дозволені якості, прапорець реклами
+Router ──> PlaybackService (інтерфейс) = PlaybackProxy ──> RealPlaybackService ──> VideoAsset, master.m3u8
+                                   │  політика плану: SubscriptionService (День 4: Factory Method → PlanPolicy)
+                                   └─ повертає: дозволені якості, прапорець реклами, позицію відновлення
 Router ──> CatalogService (Director) ──> TitleQueryBuilder ──build()──> TitleQuery ──> TitleRepository
 Router ──> RecommendationService ──> RecommendationStrategy (Genre | Popularity | Hybrid)
 Router ──> BillingService ──> PaymentGateway (Adapter → MockGateway: success/pending/failed)
                     │ успіх
                     └─> EventBus.publish(PaymentSucceeded) ──> SubscriptionActivator (Observer)
-PlaybackService ──> EventBus.publish(WatchFinished) ──> StatsUpdater (Observer)
+HistoryService.record_progress ──(just_finished)──> EventBus.publish(WatchFinished) ──> StatsUpdater (Observer)
 Reports: ReportGenerator (Template Method) ──> PopularTitles | UserActivity | Revenue
 ```
 
@@ -221,6 +221,187 @@ items, total = self.titles.search(query)
 Відмінність від канонічної схеми GoF: абстрактного інтерфейсу Builder немає, бо існує одне подання продукту
 (SQLAlchemy `Select`). Якщо з'явиться інше джерело пошуку (наприклад, повнотекстовий індекс), достатньо виділити
 інтерфейс із тими самими кроками — директор `CatalogService` при цьому не зміниться.
+
+### 3.2 Proxy — доступ до відтворення
+
+Файл: `backend/app/patterns/playback_proxy.py`. Тести: `backend/tests/test_playback_proxy.py` (6 unit-тестів проксі
+на фейках і 22 API-сценарії на реальних файлах маніфестів), `backend/tests/test_subscriptions.py`.
+
+**Проблема.** Видача відео поєднує дві різні відповідальності. Перша — знайти, що відтворювати: тайтл або епізод,
+готовий `VideoAsset`, його `master.m3u8` і позицію, з якої продовжити. Друга — вирішити, що з цього можна показати
+саме цьому користувачеві: чи він увійшов, який у нього план, яка максимальна якість, чи потрібна реклама. Якщо змішати
+їх у роутері чи одному сервісі, кожне нове правило (регіональні обмеження, ліміт одночасних переглядів, пробний період)
+змінює код, який читає файли й працює з БД. До того ж ту саму перевірку треба продублювати для двох маршрутів: опису
+відтворення і самого маніфесту.
+
+**Рішення.** Захисний замісник (protection proxy). `PlaybackProxy` реалізує той самий інтерфейс `PlaybackService`,
+що й реальний сервіс, і тримає посилання на нього. Клієнт (роутер) не знає, з ким працює. Проксі спершу перевіряє
+доступ, потім делегує реальному сервісу й обмежує результат політикою плану.
+
+```mermaid
+classDiagram
+    direction LR
+    class PlaybackService {
+        <<interface>>
+        +get_playback(user, title_id, episode_id) Playback
+        +get_master_manifest(user, asset_id) MasterPlaylist
+    }
+    class RealPlaybackService {
+        <<RealSubject>>
+        -targets: PlaybackTargetResolver
+        -assets: VideoAssetStore
+        -manifests: ManifestSource
+        -history: WatchHistoryStore
+        +get_playback(user, title_id, episode_id) Playback
+        +get_master_manifest(user, asset_id) MasterPlaylist
+    }
+    class PlaybackProxy {
+        <<Proxy>>
+        -real: PlaybackService
+        -policies: PlaybackPolicyProvider
+        -ads: AdProvider
+        +get_playback(user, title_id, episode_id) Playback
+        +get_master_manifest(user, asset_id) MasterPlaylist
+        -_policy(user) PlaybackPolicy
+        -_restrict(manifest, policy) MasterPlaylist
+    }
+    class PlaybackPolicyProvider {
+        <<interface>>
+        +policy_for(user) PlaybackPolicy
+    }
+    class SubscriptionService {
+        +policy_for(user) PlaybackPolicy
+        +grant(user, plan_code, days) Subscription
+    }
+    class AdProvider {
+        <<interface>>
+        +preroll_url() str
+    }
+    class LocalAdProvider
+    class PlaybackPolicy {
+        <<value>>
+        +plan_code: str
+        +max_height: int
+        +ads_enabled: bool
+    }
+    class Playback {
+        <<value>>
+        +asset_id: int
+        +manifest: MasterPlaylist
+        +ads: AdBreak
+        +resume_position_sec: int
+    }
+    class PlaybackRouter {
+        <<Client>>
+    }
+    RealPlaybackService ..|> PlaybackService
+    PlaybackProxy ..|> PlaybackService
+    PlaybackProxy o-- PlaybackService : real
+    PlaybackProxy --> PlaybackPolicyProvider
+    PlaybackProxy --> AdProvider
+    SubscriptionService ..|> PlaybackPolicyProvider
+    LocalAdProvider ..|> AdProvider
+    PlaybackPolicyProvider ..> PlaybackPolicy : створює
+    PlaybackService ..> Playback : повертає
+    PlaybackRouter --> PlaybackService
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Subject | `PlaybackService` (ABC) | спільний контракт: опис відтворення і master-плейлист |
+| RealSubject | `RealPlaybackService` | знаходить тайтл/епізод і готовий `VideoAsset`, читає `master.m3u8`, переписує URI варіантів на `/media/hls/<id>/...`, рахує `resume_position_sec`; без обмежень і без реклами |
+| Proxy | `PlaybackProxy` | 401 для гостя ще до звернення до реального сервісу; отримує `PlaybackPolicy`; лишає лише рендішни з `height ≤ max_height`; вмикає рекламу, якщо план її передбачає і ролик існує |
+| Client | роутер `api/routes/playback.py` | отримує `PlaybackService` через DI (`get_playback_service`), не знаючи про проксі |
+
+**Потік запиту.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Плеєр (hls.js)
+    participant R as Router
+    participant X as PlaybackProxy
+    participant S as SubscriptionService
+    participant Real as RealPlaybackService
+    participant M as StaticFiles /media
+    P->>R: GET /api/titles/{id}/playback (Bearer)
+    R->>X: get_playback(user, title_id, episode_id)
+    alt гість
+        X-->>R: 401 Unauthorized
+    else користувач
+        X->>S: policy_for(user)
+        S-->>X: PlaybackPolicy(free, 720, ads)
+        X->>Real: get_playback(user, title_id, episode_id)
+        Real-->>X: Playback(всі рендішни, без реклами, resume)
+        X-->>R: Playback(360/720, preroll_url)
+        R-->>P: {manifest_url, ads, allowed_heights, resume_position_sec}
+    end
+    P->>R: GET /api/playback/{asset_id}/master.m3u8?access_token=…
+    R->>X: get_master_manifest(user, asset_id)
+    X->>Real: get_master_manifest(user, asset_id)
+    Real-->>X: MasterPlaylist(360, 720, 1080)
+    X-->>R: MasterPlaylist(360, 720)
+    R-->>P: application/vnd.apple.mpegurl, no-store
+    P->>M: GET /media/hls/{asset_id}/720p/index.m3u8, seg_NNN.ts
+    M-->>P: файли без перевірки доступу (відоме спрощення, див. розділ 5)
+```
+
+**Використання.** Збирання графа об'єктів — єдине місце, яке знає про проксі (`api/deps.py`):
+
+```python
+def get_playback_service(session: SessionDep) -> PlaybackService:
+    media_root = Path(settings.media_dir)
+    real = RealPlaybackService(
+        PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
+        VideoAssetRepository(session),
+        LocalManifestSource(media_root),
+        WatchHistoryRepository(session),
+    )
+    return PlaybackProxy(real, get_subscription_service(session), LocalAdProvider(media_root))
+```
+
+Ядро проксі:
+
+```python
+def get_playback(self, user: User | None, title_id: int, episode_id: int | None) -> Playback:
+    policy = self._policy(user)
+    playback = self.real.get_playback(user, title_id, episode_id)
+    preroll = self.ads.preroll_url() if policy.ads_enabled else None
+    return replace(
+        playback,
+        manifest=self._restrict(playback.manifest, policy),
+        ads=AdBreak(enabled=preroll is not None, preroll_url=preroll),
+    )
+```
+
+**Чому Proxy, а не `if` у контролері.**
+- SRP: реальний сервіс відповідає за пошук і читання відео, проксі — за права доступу, роутер — лише за HTTP. Кожен
+  клас можна змінити, не чіпаючи інші.
+- Одне правило для двох маршрутів. Опис відтворення і маніфест проходять через той самий `_policy` / `_restrict`,
+  тож неможливо обмежити якість в одному маршруті й забути в іншому. `if` у контролері довелося б дублювати.
+- OCP: нові обмеження (регіон, кількість пристроїв, батьківський контроль) додаються в проксі або ще одним проксі в
+  ланцюжку з тим самим інтерфейсом. `RealPlaybackService` і роутер не змінюються.
+- DIP: проксі залежить від абстракцій `PlaybackPolicyProvider` і `AdProvider`, а не від БД чи файлової системи.
+  У Дні 4 `SubscriptionService` віддаватиме політику, створену Factory Method (`PlanPolicy` для Free/Premium), і
+  проксі при цьому не зміниться.
+- Захист до виконання роботи: гість відсікається ще до звернення до БД і файлів, що перевіряє окремий тест
+  (`real.calls == 0`).
+- Тестованість: правила плану перевіряються unit-тестами на фейковому реальному сервісі без HTTP і без БД, а реальний
+  сервіс — окремо на справжніх файлах.
+- Повторне використання: `RealPlaybackService` можна викликати напряму там, де обмеження не потрібні (наприклад,
+  для адмінського перегляду), без прапорців на кшталт `skip_checks=True`.
+
+GRASP: Protected Variations (правила доступу сховані за інтерфейсом `PlaybackService`), Indirection (проксі між
+клієнтом і реальним сервісом), Information Expert (`PlaybackPolicy` знає про якість і рекламу), Pure Fabrication
+(`PlaybackTargetResolver` — спільна перевірка «тайтл/епізод» для відтворення та історії).
+
+**Відомі спрощення.**
+- Проксі контролює лише master-плейлист. Варіантні плейлисти й сегменти віддаються статично, тож прямий URL
+  `1080p/index.m3u8` доступний без перевірки. Варіанти покращення (підписані URL з терміном дії, nginx `secure_link`,
+  AES-128) описані в розділі 5.
+- Фонове транскодування живе в процесі застосунку (`BackgroundTasks`). Якщо процес перезапуститься посеред роботи,
+  при старті такі записи переводяться у `failed` з повідомленням `interrupted by restart`, і відео треба завантажити
+  повторно. Повноцінне рішення — черга задач (наприклад, Celery або RQ) з повторними спробами.
 
 ## 4. Оплата (mock)
 
