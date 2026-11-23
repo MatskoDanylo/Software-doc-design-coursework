@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { formatClock, secondsUntilSkip } from '../../player/ads'
+import { secondsUntilSkip } from '../../player/ads'
+import { formatClock } from '../../player/time'
 import { useHlsStream } from '../../player/useHlsStream'
 import { buttonPrimary } from '../ui'
 
