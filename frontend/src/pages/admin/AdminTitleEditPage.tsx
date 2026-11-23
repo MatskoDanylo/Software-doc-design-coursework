@@ -9,6 +9,7 @@ import type { TitleSubmit } from '../../admin/titleForm'
 import { useInvalidateCatalog } from '../../admin/useInvalidateCatalog'
 import SeasonsManager from '../../components/admin/SeasonsManager'
 import TitleForm from '../../components/admin/TitleForm'
+import VideoPanel from '../../components/admin/video/VideoPanel'
 import FormAlert from '../../components/FormAlert'
 import PageLoader from '../../components/PageLoader'
 import StateMessage from '../../components/StateMessage'
@@ -59,7 +60,16 @@ export default function AdminTitleEditPage() {
       <div className={card}>
         <TitleForm key={title.id} title={title} submitLabel="Зберегти" pending={save.isPending} onSubmit={save.mutateAsync} />
       </div>
-      {title.kind === 'series' && <SeasonsManager title={title} />}
+      {title.kind === 'movie' ? (
+        <section aria-labelledby="video-heading" className={`${card} space-y-4`}>
+          <h2 id="video-heading" className="font-display text-xl font-semibold">
+            Відео
+          </h2>
+          <VideoPanel owner={{ kind: 'title', id: title.id }} />
+        </section>
+      ) : (
+        <SeasonsManager title={title} />
+      )}
     </section>
   )
 }
