@@ -4,6 +4,7 @@ import { catalogApi, catalogKeys } from '../api/catalog'
 import { ApiError } from '../api/client'
 import { errorMessage } from '../api/errors'
 import Poster from '../components/catalog/Poster'
+import FavoriteButton from '../components/favorites/FavoriteButton'
 import RatingBadge from '../components/catalog/RatingBadge'
 import SeasonList from '../components/catalog/SeasonList'
 import PageLoader from '../components/PageLoader'
@@ -44,7 +45,10 @@ function TitleInfo({ title }: { title: TitleDetail }) {
         </ul>
       )}
       <p className="max-w-prose leading-relaxed text-zinc-300">{title.description || 'Опис відсутній'}</p>
-      <WatchButton title={title} />
+      <div className="flex flex-wrap items-start gap-3">
+        <WatchButton title={title} />
+        <FavoriteButton title={title} variant="labeled" />
+      </div>
     </div>
   )
 }

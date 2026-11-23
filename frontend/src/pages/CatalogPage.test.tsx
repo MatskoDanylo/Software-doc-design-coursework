@@ -18,6 +18,7 @@ const title: Title = {
   country: 'Україна',
   rating: 8.1,
   poster_url: null,
+  is_favorite: false,
   genres: [genres[0]],
 }
 

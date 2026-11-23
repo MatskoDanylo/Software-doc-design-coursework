@@ -46,7 +46,7 @@ export function signedInAs(user: User): Record<string, unknown> {
   return { 'POST /api/auth/refresh': testTokens, '/api/users/me': user }
 }
 
-export type RouteHandler = (url: URL, init?: RequestInit) => Response
+export type RouteHandler = (url: URL, init?: RequestInit) => Response | Promise<Response>
 type FetchMock = Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>
 
 function isHandler(value: unknown): value is RouteHandler {

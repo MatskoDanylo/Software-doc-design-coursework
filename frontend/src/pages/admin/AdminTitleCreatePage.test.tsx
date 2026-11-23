@@ -18,6 +18,7 @@ const created: TitleDetail = {
   country: 'Україна',
   rating: 7.5,
   poster_url: null,
+  is_favorite: false,
   genres: [genres[1]],
   seasons: [],
 }

@@ -13,6 +13,7 @@ const movie: TitleDetail = {
   country: 'Україна',
   rating: 8.1,
   poster_url: null,
+  is_favorite: false,
   genres: [],
   seasons: [],
 }

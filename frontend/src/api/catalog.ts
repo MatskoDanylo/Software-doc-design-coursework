@@ -13,8 +13,8 @@ export function toQueryString(params: TitleSearchParams): string {
 
 export const catalogApi = {
   search: (params: TitleSearchParams) =>
-    apiRequest<TitlePage>(`/api/titles${toQueryString(params)}`, { auth: false }),
-  title: (id: number) => apiRequest<TitleDetail>(`/api/titles/${id}`, { auth: false }),
+    apiRequest<TitlePage>(`/api/titles${toQueryString(params)}`),
+  title: (id: number) => apiRequest<TitleDetail>(`/api/titles/${id}`),
   genres: () => apiRequest<Genre[]>('/api/genres', { auth: false }),
   countries: () => apiRequest<string[]>('/api/countries', { auth: false }),
 }

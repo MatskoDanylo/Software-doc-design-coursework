@@ -41,19 +41,24 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return
       setUser(restored)
       setStatus(restored ? 'authenticated' : 'guest')
+      if (restored) void queryClient.invalidateQueries()
     })
     return () => {
       active = false
     }
-  }, [])
+  }, [queryClient])
 
-  const login = useCallback(async (data: LoginRequest) => {
-    tokens.save(await authApi.login(data))
-    const me = await usersApi.me()
-    setUser(me)
-    setStatus('authenticated')
-    return me
-  }, [])
+  const login = useCallback(
+    async (data: LoginRequest) => {
+      tokens.save(await authApi.login(data))
+      const me = await usersApi.me()
+      setUser(me)
+      setStatus('authenticated')
+      void queryClient.invalidateQueries()
+      return me
+    },
+    [queryClient],
+  )
 
   const register = useCallback(
     async (data: RegisterRequest) => {

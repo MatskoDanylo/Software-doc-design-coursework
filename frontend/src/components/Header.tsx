@@ -58,6 +58,11 @@ export default function Header({ user, pending, onLogout }: HeaderProps) {
             <NavLink to="/catalog" className={navLinkClass}>
               Каталог
             </NavLink>
+            {user && (
+              <NavLink to="/favorites" className={navLinkClass}>
+                Вибране
+              </NavLink>
+            )}
             {user?.isAdmin && (
               <NavLink to="/admin" className={navLinkClass}>
                 Адмінка

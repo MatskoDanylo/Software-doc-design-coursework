@@ -29,6 +29,7 @@ export interface Title {
   rating: number
   poster_url: string | null
   genres: Genre[]
+  is_favorite: boolean
 }
 
 export interface TitleDetail extends Title {

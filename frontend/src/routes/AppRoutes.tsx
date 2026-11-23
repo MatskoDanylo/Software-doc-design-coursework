@@ -9,6 +9,7 @@ import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
 import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
 import AdminPage from '../pages/AdminPage'
 import CatalogPage from '../pages/CatalogPage'
+import FavoritesPage from '../pages/FavoritesPage'
 import HomePage from '../pages/HomePage'
 import LoginPage from '../pages/LoginPage'
 import NotFoundPage from '../pages/NotFoundPage'
@@ -36,6 +37,7 @@ export default function AppRoutes() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="favorites" element={<FavoritesPage />} />
           <Route
             path="watch/:titleId"
             element={
