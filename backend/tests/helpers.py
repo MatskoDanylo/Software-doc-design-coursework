@@ -3,6 +3,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 from httpx import Response
 
+from app.core.events import DomainEvent
+
 PASSWORD = "password123"
 
 
@@ -21,3 +23,11 @@ def login(client: TestClient, email: str, password: str = PASSWORD) -> Response:
 def assert_error(response: Response, status_code: int, code: str) -> None:
     assert response.status_code == status_code, response.text
     assert response.json()["error"]["code"] == code
+
+
+class RecordingPublisher:
+    def __init__(self) -> None:
+        self.events: list[DomainEvent] = []
+
+    def publish(self, event: DomainEvent) -> None:
+        self.events.append(event)

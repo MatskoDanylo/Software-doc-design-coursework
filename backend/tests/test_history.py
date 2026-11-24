@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
-from app.core.events import DomainEvent, WatchFinished
+from app.core.events import WatchFinished
 from app.models import TitleKind, User, VideoAsset, VideoStatus, WatchHistory
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.history_repository import WatchHistoryRepository
@@ -16,7 +16,7 @@ from app.schemas.history import ProgressUpdate
 from app.services.history_service import HistoryService
 from app.services.playback_target import PlaybackTargetResolver
 from tests.factories import add_season, make_title
-from tests.helpers import PASSWORD, assert_error, bearer, login, register
+from tests.helpers import PASSWORD, RecordingPublisher, assert_error, bearer, login, register
 
 
 @pytest.fixture
@@ -198,14 +198,6 @@ def test_deleting_episode_removes_its_progress(
     assert client.delete(f"/api/admin/episodes/{catalog['e2']}", headers=admin_headers).status_code == 204
 
     assert history_rows() == 0
-
-
-class RecordingPublisher:
-    def __init__(self) -> None:
-        self.events: list[DomainEvent] = []
-
-    def publish(self, event: DomainEvent) -> None:
-        self.events.append(event)
 
 
 def test_just_finished_is_reported_only_on_transition(user_headers: dict[str, str], catalog: dict[str, int]) -> None:

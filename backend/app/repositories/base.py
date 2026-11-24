@@ -17,6 +17,10 @@ class SqlAlchemyRepository[ModelT: Base]:
         self.session.flush()
         return entity
 
+    def save(self, entity: ModelT) -> ModelT:
+        self.session.flush()
+        return entity
+
     def delete(self, entity: ModelT) -> None:
         self.session.delete(entity)
         self.session.flush()

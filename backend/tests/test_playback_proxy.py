@@ -26,7 +26,7 @@ from app.repositories.users import UserRepository
 from app.services.hls_playlist import MasterPlaylist, Variant
 from app.services.subscription_service import SubscriptionService
 from tests.factories import add_season, make_title
-from tests.helpers import assert_error, bearer
+from tests.helpers import RecordingPublisher, assert_error, bearer
 
 MEDIA = Path(settings.media_dir)
 MASTER = MasterPlaylist.of([
@@ -172,9 +172,9 @@ def grant_premium(email: str = "user@example.com", days: int = 30) -> None:
     with SessionLocal() as session, session.begin():
         user = UserRepository(session).get_by_email(email)
         assert user is not None
-        SubscriptionService(SubscriptionRepository(session), PlanRepository(session), default_plan_registry(30)).grant(
-            user, PlanCode.PREMIUM, days
-        )
+        SubscriptionService(
+            SubscriptionRepository(session), PlanRepository(session), default_plan_registry(30), RecordingPublisher()
+        ).grant(user.id, PlanCode.PREMIUM, days)
 
 
 def playback(client: TestClient, title_id: int, headers: dict[str, str], **params: int) -> dict[str, object]:

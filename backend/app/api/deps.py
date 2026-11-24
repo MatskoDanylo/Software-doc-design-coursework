@@ -168,8 +168,10 @@ def get_plan_policies() -> PlanPolicyRegistry:
 PlanPoliciesDep = Annotated[PlanPolicyRegistry, Depends(get_plan_policies)]
 
 
-def get_subscription_service(session: SessionDep, plan_policies: PlanPoliciesDep) -> SubscriptionService:
-    return SubscriptionService(SubscriptionRepository(session), PlanRepository(session), plan_policies)
+def get_subscription_service(
+    session: SessionDep, plan_policies: PlanPoliciesDep, events: EventBusDep
+) -> SubscriptionService:
+    return SubscriptionService(SubscriptionRepository(session), PlanRepository(session), plan_policies, events)
 
 
 SubscriptionServiceDep = Annotated[SubscriptionService, Depends(get_subscription_service)]

@@ -4,6 +4,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, UrlConstraints, field_validator
 
 from app.models import Role
+from app.schemas.subscription import SubscriptionRead
 
 
 class ProfileRead(BaseModel):
@@ -22,6 +23,10 @@ class UserRead(BaseModel):
     role: Role
     created_at: datetime
     profile: ProfileRead
+
+
+class MeRead(UserRead):
+    subscription: SubscriptionRead
 
 
 class ProfileUpdate(BaseModel):

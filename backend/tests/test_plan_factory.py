@@ -16,6 +16,7 @@ from app.patterns.plan_factory import (
 )
 from app.patterns.playback_proxy import PlaybackPolicy, PlaybackProxy
 from app.services.subscription_service import SubscriptionService
+from tests.helpers import RecordingPublisher
 from tests.test_playback_proxy import AD_URL, FREE, PREMIUM, VIEWER, FakeRealPlayback, FixedAds, proxy
 
 FREE_PLAN = Plan(id=1, code="free", name="Free", price_month=Decimal("0.00"), ads_enabled=True, max_height=720)
@@ -41,6 +42,7 @@ def subscription_service(active_plan: Plan | None) -> SubscriptionService:
         FakeSubscriptions(active_plan),
         FakePlans(),
         default_plan_registry(30),
+        RecordingPublisher(),
     )
 
 

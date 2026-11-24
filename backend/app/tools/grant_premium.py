@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import AppError
+from app.event_wiring import create_event_bus
 from app.models import PlanCode
 from app.patterns.plan_factory import default_plan_registry
 from app.repositories.plans import PlanRepository
@@ -18,7 +19,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prog="python -m app.tools.grant_premium", description="Activate or extend a Premium subscription."
     )
     parser.add_argument("email", help="email of an existing user")
-    parser.add_argument("--days", type=int, default=settings.premium_days, help="subscription length in days")
+    parser.add_argument("--days", type=int, help="subscription length in days (default: Premium plan duration)")
     args = parser.parse_args(argv)
 
     with SessionLocal() as session, session.begin():
@@ -27,10 +28,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"User {args.email} not found")
             return 1
         service = SubscriptionService(
-            SubscriptionRepository(session), PlanRepository(session), default_plan_registry(settings.premium_days)
+            SubscriptionRepository(session),
+            PlanRepository(session),
+            default_plan_registry(settings.premium_days),
+            create_event_bus(session),
         )
         try:
-            subscription = service.grant(user, PlanCode.PREMIUM, args.days)
+            subscription = service.grant(user.id, PlanCode.PREMIUM, args.days)
         except AppError as exc:
             print(exc.message)
             return 1

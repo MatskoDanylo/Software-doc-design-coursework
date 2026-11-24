@@ -14,7 +14,7 @@ class SubscriptionRepository(SqlAlchemyRepository[Subscription]):
             select(Subscription)
             .where(
                 Subscription.user_id == user_id,
-                Subscription.status == SubscriptionStatus.ACTIVE.value,
+                Subscription.status.in_([SubscriptionStatus.ACTIVE.value, SubscriptionStatus.CANCELLED.value]),
                 or_(Subscription.expires_at.is_(None), Subscription.expires_at > now),
             )
             .order_by(Subscription.started_at.desc(), Subscription.id.desc())
