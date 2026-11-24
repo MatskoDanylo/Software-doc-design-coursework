@@ -27,11 +27,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if user is None:
             print(f"User {args.email} not found")
             return 1
+        plan_policies = default_plan_registry(settings.premium_days)
         service = SubscriptionService(
             SubscriptionRepository(session),
             PlanRepository(session),
-            default_plan_registry(settings.premium_days),
-            create_event_bus(session),
+            plan_policies,
+            create_event_bus(session, plan_policies),
         )
         try:
             subscription = service.grant(user.id, PlanCode.PREMIUM, args.days)

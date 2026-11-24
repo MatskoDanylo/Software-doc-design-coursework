@@ -8,18 +8,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.errors import ForbiddenError, UnauthorizedError
+from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.events import EventBus
 from app.core.storage import (
     FileStorage, LocalAdProvider, LocalManifestSource, LocalMediaStorage, LocalVideoStore, VideoFileStore,
 )
 from app.event_wiring import create_event_bus
 from app.models import Role, User
+from app.patterns.payment_gateway import MockGatewayAdapter, MockPaymentProvider
 from app.patterns.plan_factory import PlanPolicyRegistry, default_plan_registry
 from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.genre_repository import GenreRepository
 from app.repositories.history_repository import WatchHistoryRepository
+from app.repositories.payment_repository import PaymentRepository
 from app.repositories.plans import PlanRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
 from app.repositories.subscription_repository import SubscriptionRepository
@@ -28,6 +30,7 @@ from app.repositories.users import UserRepository
 from app.repositories.video_asset_repository import VideoAssetRepository, video_asset_transaction
 from app.services.admin_catalog_service import AdminCatalogService
 from app.services.auth import AuthService
+from app.services.billing_service import BillingService
 from app.services.catalog_service import CatalogService
 from app.services.favorite_service import FavoriteService
 from app.services.history_service import HistoryService
@@ -40,13 +43,6 @@ from app.services.video_service import VideoProcessingService, VideoUploadServic
 
 SessionDep = Annotated[Session, Depends(get_db, scope="function")]
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
-
-
-def get_event_bus(session: SessionDep) -> EventBus:
-    return create_event_bus(session)
-
-
-EventBusDep = Annotated[EventBus, Depends(get_event_bus)]
 
 
 def get_user_service(session: SessionDep) -> UserService:
@@ -168,6 +164,13 @@ def get_plan_policies() -> PlanPolicyRegistry:
 PlanPoliciesDep = Annotated[PlanPolicyRegistry, Depends(get_plan_policies)]
 
 
+def get_event_bus(session: SessionDep, plan_policies: PlanPoliciesDep) -> EventBus:
+    return create_event_bus(session, plan_policies)
+
+
+EventBusDep = Annotated[EventBus, Depends(get_event_bus)]
+
+
 def get_subscription_service(
     session: SessionDep, plan_policies: PlanPoliciesDep, events: EventBusDep
 ) -> SubscriptionService:
@@ -175,6 +178,31 @@ def get_subscription_service(
 
 
 SubscriptionServiceDep = Annotated[SubscriptionService, Depends(get_subscription_service)]
+
+
+@lru_cache
+def get_mock_gateway() -> MockGatewayAdapter:
+    return MockGatewayAdapter(MockPaymentProvider())
+
+
+def get_billing_service(
+    session: SessionDep,
+    gateway: Annotated[MockGatewayAdapter, Depends(get_mock_gateway)],
+    plan_policies: PlanPoliciesDep,
+    subscriptions: SubscriptionServiceDep,
+    events: EventBusDep,
+) -> BillingService:
+    return BillingService(
+        PaymentRepository(session), PlanRepository(session), gateway, gateway, plan_policies, subscriptions, events
+    )
+
+
+BillingServiceDep = Annotated[BillingService, Depends(get_billing_service)]
+
+
+def require_mock_payments() -> None:
+    if not settings.payments_mock_enabled:
+        raise NotFoundError("Mock payments are disabled", code="mock_payments_disabled")
 
 
 def get_playback_service(session: SessionDep, subscriptions: SubscriptionServiceDep) -> PlaybackService:

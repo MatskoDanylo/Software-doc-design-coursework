@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7
     media_dir: str = "../media"
     premium_days: int = 30
+    payments_mock_enabled: bool = True
     admin_email: str = "admin@example.com"
     admin_password: str = "admin12345"
     ffmpeg_path: str = "ffmpeg"
