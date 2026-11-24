@@ -9,10 +9,12 @@ import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
 import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
 import AdminPage from '../pages/AdminPage'
 import CatalogPage from '../pages/CatalogPage'
+import CheckoutPage from '../pages/CheckoutPage'
 import FavoritesPage from '../pages/FavoritesPage'
 import HomePage from '../pages/HomePage'
 import LoginPage from '../pages/LoginPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import PaymentResultPage from '../pages/PaymentResultPage'
 import PricingPage from '../pages/PricingPage'
 import ProfilePage from '../pages/ProfilePage'
 import RegisterPage from '../pages/RegisterPage'
@@ -38,6 +40,8 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
           <Route path="favorites" element={<FavoritesPage />} />
+          <Route path="checkout/:paymentId" element={<CheckoutPage />} />
+          <Route path="payments/:paymentId/result" element={<PaymentResultPage />} />
           <Route
             path="watch/:titleId"
             element={

@@ -12,6 +12,7 @@ export const testUser: User = {
   role: 'user',
   created_at: '2026-11-21T10:00:00Z',
   profile: { display_name: 'Viewer', avatar_url: null, country: 'Ukraine' },
+  subscription: { plan_code: 'free', expires_at: null, cancelled: false },
 }
 
 export const testAdmin: User = {

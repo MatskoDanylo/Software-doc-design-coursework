@@ -68,9 +68,15 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     [login],
   )
 
+  const refreshUser = useCallback(async () => {
+    const me = await usersApi.me()
+    setUser(me)
+    return me
+  }, [])
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, status, login, register, logout, updateUser: setUser }),
-    [user, status, login, register, logout],
+    () => ({ user, status, login, register, logout, updateUser: setUser, refreshUser }),
+    [user, status, login, register, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

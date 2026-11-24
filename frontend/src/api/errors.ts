@@ -27,6 +27,21 @@ const MESSAGES: Record<string, string> = {
   quality_not_available: 'Для вашого плану немає доступної якості відео',
   episode_required: 'Оберіть епізод серіалу',
   episode_not_allowed: 'У фільму немає епізодів',
+  plan_not_found: 'Такого тарифу не існує',
+  unknown_plan: 'Такого тарифу не існує',
+  plan_not_purchasable: 'Цей тариф не потрібно купувати',
+  plan_change_not_allowed: 'Перейти на цей тариф з поточного не можна',
+  payment_not_found: 'Платіж не знайдено',
+  payment_finalized: 'Цей платіж уже завершено',
+  payment_not_pending: 'Платіж уже не очікує підтвердження',
+  mock_payments_disabled: 'Тестова оплата вимкнена на сервері',
+  payment_gateway_error: 'Платіжний шлюз недоступний. Спробуйте пізніше',
+  gateway_payment_not_found: 'Платіжний шлюз не знайшов цей платіж',
+  gateway_state_conflict: 'Платіжний шлюз уже завершив цей платіж',
+  no_active_subscription: 'Активної підписки немає',
+  invalid_duration: 'Тривалість підписки має бути щонайменше 1 день',
+  notification_not_found: 'Сповіщення не знайдено',
+  user_not_found: 'Користувача не знайдено',
 }
 
 export function errorMessage(error: unknown): string {

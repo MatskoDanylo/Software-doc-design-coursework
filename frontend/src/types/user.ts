@@ -1,3 +1,5 @@
+import type { PlanCode } from './playback'
+
 export type Role = 'user' | 'admin'
 
 export interface Profile {
@@ -6,12 +8,22 @@ export interface Profile {
   country: string | null
 }
 
-export interface User {
+export interface Subscription {
+  plan_code: PlanCode
+  expires_at: string | null
+  cancelled: boolean
+}
+
+export interface Account {
   id: number
   email: string
   role: Role
   created_at: string
   profile: Profile
+}
+
+export interface User extends Account {
+  subscription: Subscription
 }
 
 export interface ProfileUpdate {
