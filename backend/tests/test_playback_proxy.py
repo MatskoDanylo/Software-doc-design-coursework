@@ -11,6 +11,7 @@ from app.core.db import SessionLocal
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.storage import LocalAdProvider
 from app.models import PlanCode, Subscription, TitleKind, User, VideoAsset, VideoStatus, WatchHistory
+from app.patterns.plan_factory import default_plan_registry
 from app.patterns.playback_proxy import (
     NO_ADS,
     AdBreak,
@@ -171,7 +172,7 @@ def grant_premium(email: str = "user@example.com", days: int = 30) -> None:
     with SessionLocal() as session, session.begin():
         user = UserRepository(session).get_by_email(email)
         assert user is not None
-        SubscriptionService(SubscriptionRepository(session), PlanRepository(session)).grant(
+        SubscriptionService(SubscriptionRepository(session), PlanRepository(session), default_plan_registry(30)).grant(
             user, PlanCode.PREMIUM, days
         )
 

@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
@@ -14,6 +15,7 @@ from app.core.storage import (
 )
 from app.event_wiring import create_event_bus
 from app.models import Role, User
+from app.patterns.plan_factory import PlanPolicyRegistry, default_plan_registry
 from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.genre_repository import GenreRepository
@@ -158,11 +160,22 @@ def get_stream_user(
 StreamUser = Annotated[User | None, Depends(get_stream_user)]
 
 
-def get_subscription_service(session: SessionDep) -> SubscriptionService:
-    return SubscriptionService(SubscriptionRepository(session), PlanRepository(session))
+@lru_cache
+def get_plan_policies() -> PlanPolicyRegistry:
+    return default_plan_registry(settings.premium_days)
 
 
-def get_playback_service(session: SessionDep) -> PlaybackService:
+PlanPoliciesDep = Annotated[PlanPolicyRegistry, Depends(get_plan_policies)]
+
+
+def get_subscription_service(session: SessionDep, plan_policies: PlanPoliciesDep) -> SubscriptionService:
+    return SubscriptionService(SubscriptionRepository(session), PlanRepository(session), plan_policies)
+
+
+SubscriptionServiceDep = Annotated[SubscriptionService, Depends(get_subscription_service)]
+
+
+def get_playback_service(session: SessionDep, subscriptions: SubscriptionServiceDep) -> PlaybackService:
     media_root = Path(settings.media_dir)
     real = RealPlaybackService(
         PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
@@ -170,7 +183,7 @@ def get_playback_service(session: SessionDep) -> PlaybackService:
         LocalManifestSource(media_root),
         WatchHistoryRepository(session),
     )
-    return PlaybackProxy(real, get_subscription_service(session), LocalAdProvider(media_root))
+    return PlaybackProxy(real, subscriptions, LocalAdProvider(media_root))
 
 
 PlaybackServiceDep = Annotated[PlaybackService, Depends(get_playback_service)]

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.errors import NotFoundError, UnprocessableError
 from app.models import Plan, PlanCode, Subscription, SubscriptionStatus, User
+from app.patterns.plan_factory import PlanPolicyRegistry
 from app.patterns.playback_proxy import PlaybackPolicy
 from app.services.ports import PlanStore, SubscriptionStore
 
@@ -13,10 +14,15 @@ def utc_now() -> datetime:
 
 class SubscriptionService:
     def __init__(
-        self, subscriptions: SubscriptionStore, plans: PlanStore, clock: Callable[[], datetime] = utc_now
+        self,
+        subscriptions: SubscriptionStore,
+        plans: PlanStore,
+        plan_policies: PlanPolicyRegistry,
+        clock: Callable[[], datetime] = utc_now,
     ) -> None:
         self.subscriptions = subscriptions
         self.plans = plans
+        self.plan_policies = plan_policies
         self.clock = clock
 
     def current_plan(self, user: User) -> Plan:
@@ -25,7 +31,7 @@ class SubscriptionService:
 
     def policy_for(self, user: User) -> PlaybackPolicy:
         plan = self.current_plan(user)
-        return PlaybackPolicy(plan_code=plan.code, max_height=plan.max_height, ads_enabled=plan.ads_enabled)
+        return self.plan_policies.creator_for(plan.code).build_playback_policy(plan)
 
     def grant(self, user: User, plan_code: PlanCode, days: int) -> Subscription:
         if days < 1:

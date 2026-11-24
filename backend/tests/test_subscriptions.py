@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.core.db import SessionLocal
 from app.core.errors import NotFoundError, UnprocessableError
 from app.models import PlanCode, Subscription, SubscriptionStatus, User
+from app.patterns.plan_factory import default_plan_registry
 from app.repositories.plans import PlanRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.users import UserRepository
@@ -30,7 +31,10 @@ def service_for(email: str, now: datetime = NOW) -> Iterator[tuple[SubscriptionS
     with SessionLocal() as session, session.begin():
         user = UserRepository(session).get_by_email(email)
         assert user is not None
-        yield SubscriptionService(SubscriptionRepository(session), PlanRepository(session), clock=lambda: now), user
+        service = SubscriptionService(
+            SubscriptionRepository(session), PlanRepository(session), default_plan_registry(30), clock=lambda: now
+        )
+        yield service, user
 
 
 def subscriptions(email: str) -> list[Subscription]:

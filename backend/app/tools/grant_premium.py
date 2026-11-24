@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import AppError
 from app.models import PlanCode
+from app.patterns.plan_factory import default_plan_registry
 from app.repositories.plans import PlanRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.users import UserRepository
@@ -25,7 +26,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if user is None:
             print(f"User {args.email} not found")
             return 1
-        service = SubscriptionService(SubscriptionRepository(session), PlanRepository(session))
+        service = SubscriptionService(
+            SubscriptionRepository(session), PlanRepository(session), default_plan_registry(settings.premium_days)
+        )
         try:
             subscription = service.grant(user, PlanCode.PREMIUM, args.days)
         except AppError as exc:
