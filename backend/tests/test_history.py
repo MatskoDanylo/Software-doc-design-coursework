@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
+from app.core.events import DomainEvent, WatchFinished
 from app.models import TitleKind, User, VideoAsset, VideoStatus, WatchHistory
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.history_repository import WatchHistoryRepository
@@ -199,17 +200,28 @@ def test_deleting_episode_removes_its_progress(
     assert history_rows() == 0
 
 
+class RecordingPublisher:
+    def __init__(self) -> None:
+        self.events: list[DomainEvent] = []
+
+    def publish(self, event: DomainEvent) -> None:
+        self.events.append(event)
+
+
 def test_just_finished_is_reported_only_on_transition(user_headers: dict[str, str], catalog: dict[str, int]) -> None:
     steps = [(100, False), (5400, True), (5400, True), (20, False), (5400, True)]
     flags = []
+    publisher = RecordingPublisher()
     for progress, finished in steps:
         with SessionLocal() as session, session.begin():
             user = UserRepository(session).get_by_email("user@example.com")
             assert isinstance(user, User)
+            user_id = user.id
             service = HistoryService(
                 WatchHistoryRepository(session),
                 PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
                 FavoriteRepository(session),
+                publisher,
             )
             result = service.record_progress(
                 user, ProgressUpdate(title_id=catalog["heat"], progress_sec=progress, finished=finished)
@@ -217,3 +229,5 @@ def test_just_finished_is_reported_only_on_transition(user_headers: dict[str, st
             flags.append(result.just_finished)
 
     assert flags == [False, True, False, False, True]
+    event = WatchFinished(user_id=user_id, title_id=catalog["heat"], episode_id=None)
+    assert publisher.events == [event, event]

@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import ForbiddenError, UnauthorizedError
+from app.core.events import EventBus
 from app.core.storage import (
     FileStorage, LocalAdProvider, LocalManifestSource, LocalMediaStorage, LocalVideoStore, VideoFileStore,
 )
+from app.event_wiring import create_event_bus
 from app.models import Role, User
 from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
 from app.repositories.favorite_repository import FavoriteRepository
@@ -36,6 +38,13 @@ from app.services.video_service import VideoProcessingService, VideoUploadServic
 
 SessionDep = Annotated[Session, Depends(get_db, scope="function")]
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
+
+
+def get_event_bus(session: SessionDep) -> EventBus:
+    return create_event_bus(session)
+
+
+EventBusDep = Annotated[EventBus, Depends(get_event_bus)]
 
 
 def get_user_service(session: SessionDep) -> UserService:
@@ -174,11 +183,12 @@ def get_favorite_service(session: SessionDep) -> FavoriteService:
 FavoriteServiceDep = Annotated[FavoriteService, Depends(get_favorite_service)]
 
 
-def get_history_service(session: SessionDep) -> HistoryService:
+def get_history_service(session: SessionDep, events: EventBusDep) -> HistoryService:
     return HistoryService(
         WatchHistoryRepository(session),
         PlaybackTargetResolver(TitleRepository(session), EpisodeRepository(session)),
         FavoriteRepository(session),
+        events,
     )
 
 
