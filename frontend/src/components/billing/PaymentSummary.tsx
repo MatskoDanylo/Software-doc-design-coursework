@@ -1,4 +1,5 @@
 import { formatMoney } from '../../billing/format'
+import { PLAN_LABELS } from '../../billing/planLabels'
 import { usePlan } from '../../billing/queries'
 import type { Payment } from '../../types/billing'
 
@@ -9,7 +10,7 @@ export default function PaymentSummary({ payment }: { payment: Payment }) {
     <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
       <dt className="text-muted">Тариф</dt>
       <dd className="font-medium">
-        {plan?.name ?? payment.plan_code}
+        {plan?.name ?? PLAN_LABELS[payment.plan_code]}
         {plan && plan.duration_days !== null && <span className="text-muted"> · {plan.duration_days} днів</span>}
       </dd>
       <dt className="text-muted">Сума</dt>

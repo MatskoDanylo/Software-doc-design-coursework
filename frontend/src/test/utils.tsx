@@ -15,6 +15,11 @@ export const testUser: User = {
   subscription: { plan_code: 'free', expires_at: null, cancelled: false },
 }
 
+export const testPremiumUser: User = {
+  ...testUser,
+  subscription: { plan_code: 'premium', expires_at: '2026-12-25T10:00:00Z', cancelled: false },
+}
+
 export const testAdmin: User = {
   ...testUser,
   id: 2,

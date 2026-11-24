@@ -1,12 +1,16 @@
 import { Link, NavLink } from 'react-router-dom'
+import type { PlanCode } from '../types/playback'
 import Avatar from './Avatar'
 import Logo from './Logo'
+import NotificationBell from './notifications/NotificationBell'
+import PlanChip from './PlanChip'
 import { buttonGhost, buttonOutline, buttonPrimary } from './ui'
 
 export interface HeaderUser {
   displayName: string
   avatarUrl: string | null
   isAdmin: boolean
+  plan: PlanCode
 }
 
 interface HeaderProps {
@@ -21,6 +25,8 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function UserMenu({ user, onLogout }: { user: HeaderUser; onLogout: () => void }) {
   return (
     <div className="flex items-center gap-3">
+      <PlanChip plan={user.plan} />
+      <NotificationBell />
       <Link to="/profile" className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-surface-raised">
         <Avatar name={user.displayName} url={user.avatarUrl} />
         <span className="max-w-40 truncate text-sm text-zinc-200">{user.displayName}</span>
@@ -57,6 +63,9 @@ export default function Header({ user, pending, onLogout }: HeaderProps) {
             </NavLink>
             <NavLink to="/catalog" className={navLinkClass}>
               Каталог
+            </NavLink>
+            <NavLink to="/pricing" className={navLinkClass}>
+              Тарифи
             </NavLink>
             {user && (
               <NavLink to="/favorites" className={navLinkClass}>

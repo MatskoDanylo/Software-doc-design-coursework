@@ -12,6 +12,7 @@ export default function Layout() {
     displayName: user.profile.display_name,
     avatarUrl: user.profile.avatar_url,
     isAdmin: user.role === 'admin',
+    plan: user.subscription.plan_code,
   }
 
   const handleLogout = () => {

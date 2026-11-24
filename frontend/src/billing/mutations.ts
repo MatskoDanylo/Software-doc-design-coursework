@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { billingApi, billingKeys } from '../api/billing'
+import { notificationsKeys } from '../api/notifications'
+import { subscriptionsApi } from '../api/subscriptions'
 import type { Payment, PaymentOutcome } from '../types/billing'
 import type { PlanCode } from '../types/playback'
 import { checkoutPath } from './paths'
@@ -31,6 +33,15 @@ export function useSubmitPaymentResult(paymentId: number) {
       )
       if (payment.status === 'success') await refreshPlan()
     },
-    onSettled: () => client.invalidateQueries({ queryKey: billingKeys.payments }),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: billingKeys.payments }),
+        client.invalidateQueries({ queryKey: notificationsKeys.inbox }),
+      ]),
   })
+}
+
+export function useCancelSubscription() {
+  const refreshPlan = usePlanRefresh()
+  return useMutation({ mutationFn: subscriptionsApi.cancel, onSuccess: refreshPlan })
 }

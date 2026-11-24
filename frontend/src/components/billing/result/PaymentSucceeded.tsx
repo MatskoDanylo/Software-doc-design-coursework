@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/useAuth'
 import { formatDate } from '../../../billing/format'
+import { PLAN_LABELS } from '../../../billing/planLabels'
 import { usePlan } from '../../../billing/queries'
 import type { Payment } from '../../../types/billing'
 import StateMessage from '../../StateMessage'
@@ -10,7 +11,7 @@ export default function PaymentSucceeded({ payment }: { payment: Payment }) {
   const { user } = useAuth()
   const plan = usePlan(payment.plan_code)
   const subscription = user?.subscription.plan_code === payment.plan_code ? user.subscription : null
-  const name = plan?.name ?? payment.plan_code
+  const name = plan?.name ?? PLAN_LABELS[payment.plan_code]
   const until = subscription?.expires_at ? ` до ${formatDate(subscription.expires_at)}` : ''
   const perks = plan ? ` Відео без реклами, якість до ${plan.max_height}p.` : ''
 

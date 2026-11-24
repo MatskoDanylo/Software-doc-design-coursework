@@ -1,7 +1,16 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { HlsStream } from '../player/useHlsStream'
-import { callsTo, currentUrl, errorResponse, mockApi, renderApp, signedInAs, testUser } from '../test/utils'
+import {
+  callsTo,
+  currentUrl,
+  errorResponse,
+  mockApi,
+  renderApp,
+  signedInAs,
+  testPremiumUser,
+  testUser,
+} from '../test/utils'
 import type { TitleDetail } from '../types/catalog'
 import type { Playback, ProgressUpdate } from '../types/playback'
 
@@ -56,8 +65,9 @@ const premiumPlayback: Playback = {
 }
 
 function mockWatch(playback: Playback | Response, title: TitleDetail = movie) {
+  const premium = !(playback instanceof Response) && playback.plan === 'premium'
   return mockApi({
-    ...signedInAs(testUser),
+    ...signedInAs(premium ? testPremiumUser : testUser),
     [`/api/titles/${title.id}`]: title,
     [`/api/titles/${title.id}/playback`]: () => (playback instanceof Response ? playback : Response.json(playback)),
     'PUT /api/history/progress': () => new Response(null, { status: 200 }),

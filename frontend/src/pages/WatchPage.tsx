@@ -4,6 +4,7 @@ import { catalogApi, catalogKeys } from '../api/catalog'
 import { ApiError } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { playbackApi, playbackKeys } from '../api/playback'
+import { useAuth } from '../auth/useAuth'
 import EpisodePanel from '../components/player/EpisodePanel'
 import PlanBadge from '../components/player/PlanBadge'
 import PlaybackStage from '../components/player/PlaybackStage'
@@ -28,6 +29,7 @@ function BackLink({ to, label }: { to: string; label: string }) {
 }
 
 function PlaybackArea({ title, episode }: { title: TitleDetail; episode: EpisodeRef | null }) {
+  const { user } = useAuth()
   const episodeId = episode?.id ?? null
   const query = useQuery({
     queryKey: playbackKeys.detail(title.id, episodeId),
@@ -51,7 +53,7 @@ function PlaybackArea({ title, episode }: { title: TitleDetail; episode: Episode
 
   return (
     <div className="space-y-4">
-      <PlanBadge plan={query.data.plan} />
+      <PlanBadge plan={user?.subscription.plan_code ?? query.data.plan} />
       <PlaybackStage
         key={episodeId ?? 'movie'}
         playback={query.data}
