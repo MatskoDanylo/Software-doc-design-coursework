@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/useAuth'
 import { formatDate } from '../../../format/datetime'
+import { sentence } from '../../../format/text'
 import { PLAN_LABELS } from '../../../billing/planLabels'
 import { usePlan } from '../../../billing/queries'
 import type { Payment } from '../../../types/billing'
@@ -18,7 +19,7 @@ export default function PaymentSucceeded({ payment }: { payment: Payment }) {
   return (
     <StateMessage
       title="Оплату прийнято"
-      text={`План ${name} активний${until}.${perks}`}
+      text={`${sentence(`План ${name} активний${until}`)}${perks}`}
       action={
         <div className="flex flex-wrap justify-center gap-3">
           <Link to="/catalog" className={buttonPrimary}>

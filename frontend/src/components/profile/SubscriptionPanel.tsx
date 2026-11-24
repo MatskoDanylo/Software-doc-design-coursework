@@ -5,6 +5,7 @@ import { planFeatures } from '../../billing/planFeatures'
 import { PLAN_LABELS } from '../../billing/planLabels'
 import { usePlan } from '../../billing/queries'
 import { formatDate } from '../../format/datetime'
+import { sentence } from '../../format/text'
 import type { Subscription } from '../../types/user'
 import ConfirmButton from '../admin/ConfirmButton'
 import FormAlert from '../FormAlert'
@@ -13,7 +14,7 @@ import { buttonOutline, buttonPrimary, card } from '../ui'
 function statusText({ plan_code, expires_at, cancelled }: Subscription): string {
   if (plan_code === 'free' || expires_at === null) return 'Безкоштовний план без обмеження в часі.'
   const until = formatDate(expires_at)
-  return cancelled ? `Підписку скасовано. Доступ зберігається до ${until}.` : `Діє до ${until}.`
+  return sentence(cancelled ? `Підписку скасовано. Доступ зберігається до ${until}` : `Діє до ${until}`)
 }
 
 function SubscriptionActions({ subscription }: { subscription: Subscription }) {
@@ -36,7 +37,7 @@ function SubscriptionActions({ subscription }: { subscription: Subscription }) {
         </Link>
         <ConfirmButton
           label="Скасувати підписку"
-          question={`Скасувати Premium? Доступ збережеться до ${until}.`}
+          question={sentence(`Скасувати Premium? Доступ збережеться до ${until}`)}
           confirmLabel="Так, скасувати"
           pendingLabel="Скасування…"
           dismissLabel="Ні"
