@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Protocol
 
 from app.models import (
-    Episode, Genre, Plan, Season, Subscription, Title, TitleKind, VideoAsset, WatchHistory,
+    Episode, Genre, Notification, Payment, PaymentStatus, Plan, Season, Subscription, Title, TitleKind, VideoAsset,
+    WatchHistory,
 )
 
 
@@ -44,9 +45,31 @@ class VideoAssetStore(EntityStore[VideoAsset], Protocol):
 class PlanStore(EntityStore[Plan], Protocol):
     def get_by_code(self, code: str) -> Plan | None: ...
 
+    def list_all(self) -> Sequence[Plan]: ...
+
 
 class SubscriptionStore(EntityStore[Subscription], Protocol):
     def get_active(self, user_id: int, now: datetime) -> Subscription | None: ...
+
+
+class PaymentStore(EntityStore[Payment], Protocol):
+    def get_for_update(self, payment_id: int) -> Payment | None: ...
+
+    def get_for_user_for_update(self, payment_id: int, user_id: int) -> Payment | None: ...
+
+    def list_for_user(self, user_id: int) -> Sequence[Payment]: ...
+
+    def page(self, status: PaymentStatus | None, page: int, page_size: int) -> tuple[Sequence[Payment], int]: ...
+
+
+class NotificationStore(EntityStore[Notification], Protocol):
+    def list_for_user(self, user_id: int, unread_only: bool, limit: int) -> Sequence[Notification]: ...
+
+    def unread_count(self, user_id: int) -> int: ...
+
+    def get_for_user(self, notification_id: int, user_id: int) -> Notification | None: ...
+
+    def mark_all_read(self, user_id: int) -> int: ...
 
 
 class WatchHistoryStore(EntityStore[WatchHistory], Protocol):

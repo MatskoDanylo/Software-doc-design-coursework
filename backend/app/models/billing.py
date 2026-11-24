@@ -1,11 +1,15 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class PlanCode(StrEnum):
@@ -56,6 +60,7 @@ class Subscription(Base):
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (Index("ix_payments_status_created_at", "status", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -65,5 +70,7 @@ class Payment(Base):
     provider: Mapped[str] = mapped_column(String(30), default="mock")
     external_id: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     plan: Mapped[Plan] = relationship(lazy="joined")
+    user: Mapped["User"] = relationship()
