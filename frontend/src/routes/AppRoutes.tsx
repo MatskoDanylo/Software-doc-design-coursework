@@ -4,9 +4,11 @@ import AdminLayout from '../components/admin/AdminLayout'
 import Layout from '../components/Layout'
 import PageLoader from '../components/PageLoader'
 import AdminGenresPage from '../pages/admin/AdminGenresPage'
+import AdminPaymentsPage from '../pages/admin/AdminPaymentsPage'
 import AdminTitleCreatePage from '../pages/admin/AdminTitleCreatePage'
 import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
 import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
+import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminPage from '../pages/AdminPage'
 import CatalogPage from '../pages/CatalogPage'
 import CheckoutPage from '../pages/CheckoutPage'
@@ -58,6 +60,8 @@ export default function AppRoutes() {
             <Route path="titles/new" element={<AdminTitleCreatePage />} />
             <Route path="titles/:id" element={<AdminTitleEditPage />} />
             <Route path="genres" element={<AdminGenresPage />} />
+            <Route path="payments" element={<AdminPaymentsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

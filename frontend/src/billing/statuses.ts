@@ -6,3 +6,7 @@ export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; className: s
   success: { label: 'Оплачено', className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
   failed: { label: 'Відхилено', className: 'border-danger/40 bg-danger/10 text-danger' },
 }
+
+export function isPaymentStatus(value: string | null): value is PaymentStatus {
+  return value !== null && Object.hasOwn(PAYMENT_STATUS, value)
+}

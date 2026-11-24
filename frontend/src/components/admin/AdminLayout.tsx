@@ -4,6 +4,8 @@ const LINKS = [
   { to: '/admin', label: 'Огляд', end: true },
   { to: '/admin/titles', label: 'Фільми та серіали', end: false },
   { to: '/admin/genres', label: 'Жанри', end: false },
+  { to: '/admin/payments', label: 'Платежі', end: false },
+  { to: '/admin/users', label: 'Користувачі', end: false },
 ]
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
