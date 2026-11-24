@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/useAuth'
-import { formatDate } from '../../../billing/format'
+import { formatDate } from '../../../format/datetime'
 import { PLAN_LABELS } from '../../../billing/planLabels'
 import { usePlan } from '../../../billing/queries'
 import type { Payment } from '../../../types/billing'

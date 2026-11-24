@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../notifications/format'
+import { formatDateTime } from '../../format/datetime'
 import type { AppNotification } from '../../types/notification'
 
 interface NotificationItemProps {
