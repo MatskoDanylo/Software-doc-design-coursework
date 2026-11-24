@@ -86,3 +86,14 @@ def user_headers(client: TestClient) -> dict[str, str]:
 @pytest.fixture
 def admin_headers(client: TestClient, seeded: None) -> dict[str, str]:
     return bearer(login(client, settings.admin_email, settings.admin_password).json()["access_token"])
+
+
+@pytest.fixture
+def buyer(seeded: None, user_headers: dict[str, str]) -> dict[str, str]:
+    return user_headers
+
+
+@pytest.fixture
+def stranger(client: TestClient, seeded: None) -> dict[str, str]:
+    register(client, "stranger@example.com")
+    return bearer(login(client, "stranger@example.com", PASSWORD).json()["access_token"])

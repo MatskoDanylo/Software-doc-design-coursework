@@ -95,6 +95,11 @@ class BillingService:
     def history(self, user: User) -> Sequence[Payment]:
         return self.payments.list_for_user(user.id)
 
+    def payments_page(
+        self, status: PaymentStatus | None, page: int, page_size: int
+    ) -> tuple[Sequence[Payment], int]:
+        return self.payments.page(status, page, page_size)
+
     def _settle(self, payment: Payment, outcome: PaymentOutcome) -> Payment:
         status = PaymentStatus(payment.status)
         if status == PaymentStatus.SUCCESS and outcome == PaymentOutcome.SUCCESS:

@@ -1,21 +1,20 @@
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_mock_gateway
 from app.core.config import settings
-from app.core.db import SessionLocal
 from app.core.events import DomainEvent
 from app.main import app
 from app.models import Notification, Payment, Subscription, SubscriptionStatus
 from app.patterns.payment_gateway import MockGatewayAdapter, MockPaymentProvider
 from app.services.notification_service import NotificationService
-from tests.helpers import PASSWORD, assert_error, bearer, login, register
+from tests.billing_helpers import (
+    checkout, days_left, me, mock_result, notification_kinds, payment, rows, settle,
+)
+from tests.helpers import assert_error
 from tests.test_playback_proxy import catalog, preroll  # noqa: F401
 
 PREMIUM_PLAN = {
@@ -29,57 +28,6 @@ PREMIUM_PLAN = {
     "description": "99.00 грн за 30 днів. Без реклами, якість до 1080p.",
     "purchasable": True,
 }
-
-
-@pytest.fixture
-def buyer(seeded: None, user_headers: dict[str, str]) -> dict[str, str]:
-    return user_headers
-
-
-@pytest.fixture
-def stranger(client: TestClient, seeded: None) -> dict[str, str]:
-    register(client, "stranger@example.com")
-    return bearer(login(client, "stranger@example.com", PASSWORD).json()["access_token"])
-
-
-def checkout(client: TestClient, headers: dict[str, str], plan_code: str = "premium") -> dict[str, Any]:
-    r = client.post("/api/billing/checkout", json={"plan_code": plan_code}, headers=headers)
-    assert r.status_code == 201, r.text
-    return r.json()
-
-
-def mock_result(client: TestClient, headers: dict[str, str], payment_id: int, outcome: str) -> Response:
-    return client.post(f"/api/billing/payments/{payment_id}/mock-result", json={"outcome": outcome}, headers=headers)
-
-
-def settle(client: TestClient, headers: dict[str, str], payment_id: int, outcome: str) -> dict[str, Any]:
-    r = mock_result(client, headers, payment_id, outcome)
-    assert r.status_code == 200, r.text
-    return r.json()
-
-
-def me(client: TestClient, headers: dict[str, str]) -> dict[str, Any]:
-    return client.get("/api/users/me", headers=headers).json()["subscription"]
-
-
-def rows[T: (Payment, Subscription, Notification)](model: type[T]) -> list[T]:
-    with SessionLocal() as session:
-        return list(session.scalars(select(model).order_by(model.id)))
-
-
-def notification_kinds() -> list[str]:
-    return [n.kind for n in rows(Notification)]
-
-
-def payment(payment_id: int) -> Payment:
-    with SessionLocal() as session:
-        found = session.get(Payment, payment_id)
-        assert found is not None
-        return found
-
-
-def days_left(expires_at: str) -> timedelta:
-    return datetime.fromisoformat(expires_at) - datetime.now(UTC)
 
 
 def test_plans_are_public_and_described_by_policies(client: TestClient, seeded: None) -> None:

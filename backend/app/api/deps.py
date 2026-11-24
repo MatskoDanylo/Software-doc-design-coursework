@@ -21,6 +21,7 @@ from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlay
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.genre_repository import GenreRepository
 from app.repositories.history_repository import WatchHistoryRepository
+from app.repositories.notification_repository import NotificationRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.plans import PlanRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
@@ -34,6 +35,7 @@ from app.services.billing_service import BillingService
 from app.services.catalog_service import CatalogService
 from app.services.favorite_service import FavoriteService
 from app.services.history_service import HistoryService
+from app.services.notification_inbox import NotificationInbox
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
@@ -198,6 +200,13 @@ def get_billing_service(
 
 
 BillingServiceDep = Annotated[BillingService, Depends(get_billing_service)]
+
+
+def get_notification_inbox(session: SessionDep) -> NotificationInbox:
+    return NotificationInbox(NotificationRepository(session))
+
+
+NotificationInboxDep = Annotated[NotificationInbox, Depends(get_notification_inbox)]
 
 
 def require_mock_payments() -> None:

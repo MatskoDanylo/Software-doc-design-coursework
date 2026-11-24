@@ -78,3 +78,25 @@ class PaymentRead(BaseModel):
             created_at=payment.created_at,
             paid_at=payment.paid_at,
         )
+
+
+class AdminPaymentRead(PaymentRead):
+    user_id: int
+    user_email: str
+
+    @classmethod
+    def from_payment(cls, payment: Payment) -> "AdminPaymentRead":
+        base = PaymentRead.from_payment(payment)
+        return cls(**base.model_dump(), user_id=payment.user_id, user_email=payment.user.email)
+
+
+class AdminPaymentPage(BaseModel):
+    items: list[AdminPaymentRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class SubscriptionChange(BaseModel):
+    action: Literal["grant", "revoke"]
+    days: int | None = Field(default=None, ge=1, le=3650)

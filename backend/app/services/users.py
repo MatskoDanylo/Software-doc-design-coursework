@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from app.core.errors import ConflictError
+from app.core.errors import ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.models import Profile, Role, User
 from app.repositories.users import UserRepository
@@ -22,6 +22,12 @@ class UserService:
             role=role,
             profile=Profile(display_name=display_name or email.split("@")[0]),
         ))
+
+    def get(self, user_id: int) -> User:
+        user = self.users.get(user_id)
+        if user is None:
+            raise NotFoundError("User not found", code="user_not_found")
+        return user
 
     def update_profile(self, user: User, data: ProfileUpdate) -> User:
         for field, value in data.model_dump(mode="json", exclude_unset=True).items():
