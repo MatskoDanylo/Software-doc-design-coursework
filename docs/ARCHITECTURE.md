@@ -37,6 +37,7 @@ erDiagram
     USER ||--o{ PAYMENT : makes
     USER ||--o{ FAVORITE : saves
     USER ||--o{ WATCH_HISTORY : watches
+    USER ||--o{ NOTIFICATION : receives
     PLAN ||--o{ SUBSCRIPTION : defines
     PLAN ||--o{ PAYMENT : paid_for
     TITLE ||--o{ FAVORITE : in
@@ -52,7 +53,8 @@ erDiagram
     PROFILE { int user_id string display_name string avatar_url string country }
     PLAN { int id string code string name decimal price_month bool ads_enabled int max_height }
     SUBSCRIPTION { int id int user_id int plan_id string status datetime started_at datetime expires_at }
-    PAYMENT { int id int user_id int plan_id decimal amount string status string provider string external_id datetime created_at }
+    PAYMENT { int id int user_id int plan_id decimal amount string status string provider string external_id datetime created_at datetime paid_at }
+    NOTIFICATION { int id int user_id string kind string message bool read datetime created_at }
     TITLE { int id string kind string name text description int year string country float rating string poster_url }
     GENRE { int id string name }
     SEASON { int id int title_id int number }
@@ -65,6 +67,16 @@ erDiagram
 Плани створюються сідом (`python -m app.seed`): `free` (реклама, до 720p, 0 грн) і `premium` (без реклами, до 1080p,
 99 грн/міс). Користувач без активної `SUBSCRIPTION` вважається на плані `free`, тому окремий запис підписки для Free
 не створюється. Сід також створює адміністратора з `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+**Підписки, платежі, сповіщення.**
+- `SUBSCRIPTION.status`: `active`; `cancelled` (користувач скасував, доступ діє до `expires_at`); `expired` (адміністратор
+  забрав Premium або підписку замінено іншим планом). Активною вважається підписка зі статусом `active` або `cancelled`
+  і `expires_at` у майбутньому.
+- `PAYMENT.status`: `created → pending → success | failed`, або одразу `created → success | failed`. `success` і
+  `failed` фінальні. `external_id` — номер invoice у платіжного провайдера, `paid_at` заповнюється лише при `success`
+  (знадобиться звіту доходів). Індекс `(status, created_at)` обслуговує адмін-список із фільтром за статусом.
+- `NOTIFICATION.kind`: `payment_pending`, `payment_failed`, `subscription_activated`. Індекс `(user_id, created_at)`
+  обслуговує стрічку сповіщень користувача.
 
 `python -m app.seed --demo` додатково завантажує демо-каталог (`app/demo_data.py`): 12 жанрів, 25 фільмів і 6 серіалів
 із сезонами та епізодами. Повторний запуск не створює дублікатів: тайтл шукається за (kind, name, year), довідкові
@@ -97,22 +109,31 @@ erDiagram
 
 ```
 Router ──> PlaybackService (інтерфейс) = PlaybackProxy ──> RealPlaybackService ──> VideoAsset, master.m3u8
-                                   │  політика плану: SubscriptionService (День 4: Factory Method → PlanPolicy)
-                                   └─ повертає: дозволені якості, прапорець реклами, позицію відновлення
+                 │  політика плану: SubscriptionService ──> PlanPolicyRegistry ──> PlanPolicyCreator (Factory Method)
+                 └─ повертає: дозволені якості, прапорець реклами, позицію відновлення
 Router ──> CatalogService (Director) ──> TitleQueryBuilder ──build()──> TitleQuery ──> TitleRepository
-Router ──> RecommendationService ──> RecommendationStrategy (Genre | Popularity | Hybrid)
-Router ──> BillingService ──> PaymentGateway (Adapter → MockGateway: success/pending/failed)
-                    │ успіх
-                    └─> EventBus.publish(PaymentSucceeded) ──> SubscriptionActivator (Observer)
-HistoryService.record_progress ──(just_finished)──> EventBus.publish(WatchFinished) ──> StatsUpdater (Observer)
-Reports: ReportGenerator (Template Method) ──> PopularTitles | UserActivity | Revenue
+Router ──> BillingService ──> PaymentGateway = MockGatewayAdapter ──> MockPaymentProvider (Adapter)
+                │  ціна, тривалість, «чи можна купити»: PlanPolicyCreator.quote() (Factory Method)
+                └─ зміна статусу ──> EventBus.publish(PaymentSucceeded | PaymentPending | PaymentFailed)
+EventBus (Observer), підписки лише в app/event_wiring.py:
+   PaymentSucceeded ──> SubscriptionActivator ──> SubscriptionService.grant ──> publish(SubscriptionActivated)
+   PaymentPending | PaymentFailed | SubscriptionActivated ──> NotificationService ──> таблиця notifications
+HistoryService.record_progress ──(just_finished)──> EventBus.publish(WatchFinished)        [підписник — День 5]
+Router ──> RecommendationService ──> RecommendationStrategy (Genre | Popularity | Hybrid)   [День 5]
+Reports: ReportGenerator (Template Method) ──> PopularTitles | UserActivity | Revenue       [День 5]
 ```
 
-Як патерни працюють разом: проксі отримує політику від фабрики, платіж через адаптер породжує подію, яку обробляють
-спостерігачі (активація підписки), після чого проксі вже пускає користувача без реклами.
+Як патерни працюють разом. Користувач оплачує Premium: `BillingService` бере ціну з політики плану (Factory Method),
+проводить платіж через адаптер шлюзу (Adapter) і публікує `PaymentSucceeded`. Спостерігачі в тій самій транзакції
+продовжують підписку і пишуть сповіщення (Observer). На наступному запиті відтворення проксі (Proxy) отримує від
+`SubscriptionService` політику Premium, створену тією самою фабрикою, і віддає 1080p без реклами. Жоден із цих класів
+не знає про інші напряму: їх пов'язують інтерфейси `PaymentGateway`, `EventPublisher`, `PlaybackPolicyProvider` і
+`PlanPolicyCreator`.
 
-GRASP: Controller (роутери), Information Expert (політика плану знає про рекламу і якість), Low Coupling / High Cohesion
-(шари), Polymorphism (стратегії, шлюзи), Pure Fabrication (EventBus), Protected Variations (інтерфейс шлюзу).
+GRASP: Controller (роутери), Information Expert (політика плану знає про рекламу, якість і ціну), Creator
+(`PlanPolicyCreator` створює політику, бо має всі дані для неї), Low Coupling / High Cohesion (шари), Polymorphism
+(політики планів, стратегії, шлюзи), Pure Fabrication (`EventBus`), Indirection (шина між видавцем і
+спостерігачами), Protected Variations (інтерфейси шлюзу і політики плану).
 
 ### 3.1 Builder — пошук і фільтри каталогу
 
@@ -271,8 +292,13 @@ classDiagram
         +policy_for(user) PlaybackPolicy
     }
     class SubscriptionService {
+        -plan_policies: PlanPolicyRegistry
         +policy_for(user) PlaybackPolicy
-        +grant(user, plan_code, days) Subscription
+        +grant(user_id, plan_code, days) Subscription
+    }
+    class PlanPolicyCreator {
+        <<Creator>>
+        +build_playback_policy(plan) PlaybackPolicy
     }
     class AdProvider {
         <<interface>>
@@ -302,6 +328,7 @@ classDiagram
     PlaybackProxy --> PlaybackPolicyProvider
     PlaybackProxy --> AdProvider
     SubscriptionService ..|> PlaybackPolicyProvider
+    SubscriptionService --> PlanPolicyCreator : через реєстр
     LocalAdProvider ..|> AdProvider
     PlaybackPolicyProvider ..> PlaybackPolicy : створює
     PlaybackService ..> Playback : повертає
@@ -384,8 +411,9 @@ def get_playback(self, user: User | None, title_id: int, episode_id: int | None)
 - OCP: нові обмеження (регіон, кількість пристроїв, батьківський контроль) додаються в проксі або ще одним проксі в
   ланцюжку з тим самим інтерфейсом. `RealPlaybackService` і роутер не змінюються.
 - DIP: проксі залежить від абстракцій `PlaybackPolicyProvider` і `AdProvider`, а не від БД чи файлової системи.
-  У Дні 4 `SubscriptionService` віддаватиме політику, створену Factory Method (`PlanPolicy` для Free/Premium), і
-  проксі при цьому не зміниться.
+  У Дні 4 `SubscriptionService.policy_for` перейшов на Factory Method (`PlanPolicyCreator.build_playback_policy`,
+  розділ 3.4), а файл проксі не змінився жодним рядком. Тест `test_proxy_with_factory_backed_policies_behaves_as_before`
+  порівнює проксі на фабриці з проксі на фіксованих політиках: результат однаковий для Free і Premium.
 - Захист до виконання роботи: гість відсікається ще до звернення до БД і файлів, що перевіряє окремий тест
   (`real.calls == 0`).
 - Тестованість: правила плану перевіряються unit-тестами на фейковому реальному сервісі без HTTP і без БД, а реальний
@@ -404,15 +432,487 @@ GRASP: Protected Variations (правила доступу сховані за �
 - Фонове транскодування живе в процесі застосунку (`BackgroundTasks`). Якщо процес перезапуститься посеред роботи,
   при старті такі записи переводяться у `failed` з повідомленням `interrupted by restart`, і відео треба завантажити
   повторно. Повноцінне рішення — черга задач (наприклад, Celery або RQ) з повторними спробами.
+- Кнопка «Дивитись» на сторінці тайтлу (`WatchButton`) перевіряє, чи є відео, повним запитом
+  `GET /api/titles/{id}/playback`. На кожен перегляд сторінки проксі рахує політику плану, а реальний сервіс читає
+  `master.m3u8` з диска, хоча кнопці потрібен лише факт «відео готове». Крім того, TanStack Query кешує цю відповідь
+  разом із полем `plan`, тож одразу після оплати кеш може ще показувати `free`, поки запит не оновиться. Покращення:
+  легке поле `video_ready` у `TitleDetail` (або `HEAD`-ендпоінт) для кнопки і інвалідація ключа `playback` після
+  успішної оплати.
+
+### 3.3 Observer — доменні події
+
+Файли: `backend/app/core/events.py` (події, `EventBus`, протоколи), `backend/app/event_wiring.py` (реєстрація),
+`backend/app/services/subscription_activator.py`, `backend/app/services/notification_service.py` (спостерігачі).
+Тести: `backend/tests/test_events.py`, `backend/tests/test_event_handlers.py`, `backend/tests/test_billing.py`.
+
+**Проблема.** Успішна оплата має кілька наслідків: активувати або продовжити Premium, сповістити користувача, а в
+Дні 5 ще й оновити статистику доходів. Ті самі сповіщення потрібні, коли Premium видає адміністратор або CLI. Якщо
+`BillingService` викликатиме все це напряму, він залежатиме від підписок, сповіщень і статистики, а кожна нова
+реакція на оплату змінюватиме код оплати (порушення OCP, високе зчеплення). Те саме з переглядами: `HistoryService`
+не має знати, хто цікавиться завершеним переглядом.
+
+**Рішення.** Видавці знають лише протокол `EventPublisher.publish(event)` і незмінну подію. Шина `EventBus` (Subject)
+тримає підписників за типом події і синхронно викликає їх. Спостерігачі реалізують `EventHandler.handle(event,
+session)`. Хто на що підписаний, вирішує одне місце — `create_event_bus` (composition root).
+
+```mermaid
+classDiagram
+    direction LR
+    class DomainEvent {
+        <<frozen dataclass>>
+    }
+    class PaymentSucceeded {
+        +payment_id: int
+        +user_id: int
+        +plan_code: str
+        +amount: Decimal
+    }
+    class PaymentPending
+    class PaymentFailed
+    class SubscriptionActivated {
+        +user_id: int
+        +subscription_id: int
+        +plan_code: str
+        +expires_at: datetime
+    }
+    class WatchFinished {
+        +user_id: int
+        +title_id: int
+        +episode_id: int
+    }
+    class EventPublisher {
+        <<interface>>
+        +publish(event)
+    }
+    class EventHandler {
+        <<interface>>
+        +handle(event, session)
+    }
+    class EventBus {
+        <<Subject>>
+        -session: Session
+        -handlers: dict
+        +subscribe(event_type, handler)
+        +unsubscribe(event_type, handler)
+        +publish(event)
+    }
+    class SubscriptionActivator {
+        <<ConcreteObserver>>
+        +handle(PaymentSucceeded, session)
+    }
+    class NotificationService {
+        <<ConcreteObserver>>
+        +handle(event, session)
+    }
+    class BillingService
+    class SubscriptionService
+    class HistoryService
+    DomainEvent <|-- PaymentSucceeded
+    DomainEvent <|-- PaymentPending
+    DomainEvent <|-- PaymentFailed
+    DomainEvent <|-- SubscriptionActivated
+    DomainEvent <|-- WatchFinished
+    EventBus ..|> EventPublisher
+    EventBus o-- EventHandler : handlers
+    SubscriptionActivator ..|> EventHandler
+    NotificationService ..|> EventHandler
+    BillingService --> EventPublisher : PaymentSucceeded / Pending / Failed
+    SubscriptionService --> EventPublisher : SubscriptionActivated
+    HistoryService --> EventPublisher : WatchFinished
+    SubscriptionActivator --> SubscriptionService : grant()
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Subject | `EventBus` | `subscribe` / `unsubscribe` / `publish`; зберігає обробників за точним типом події, викликає їх у порядку підписки |
+| Observer | `EventHandler` (Protocol) | єдиний метод `handle(event, session)` |
+| ConcreteObserver | `SubscriptionActivator` | на `PaymentSucceeded` викликає `SubscriptionService.grant(user_id, plan_code)` |
+| ConcreteObserver | `NotificationService` | на `PaymentPending`, `PaymentFailed`, `SubscriptionActivated` пише сповіщення українською |
+| Стан, що передається | `PaymentSucceeded`, `PaymentPending`, `PaymentFailed`, `SubscriptionActivated`, `WatchFinished` | frozen dataclass (push-модель): обробник отримує всі дані і не може змінити подію для наступних |
+| Видавці | `BillingService`, `SubscriptionService`, `HistoryService` | залежать лише від `EventPublisher` |
+
+**Реєстрація в одному місці** (`app/event_wiring.py`):
+
+```python
+def create_event_bus(session: Session, plan_policies: PlanPolicyRegistry) -> EventBus:
+    bus = EventBus(session)
+
+    def subscription_service(unit: Session) -> SubscriptionService:
+        return SubscriptionService(SubscriptionRepository(unit), PlanRepository(unit), plan_policies, bus)
+
+    notifications = NotificationService(NotificationRepository)
+    bus.subscribe(PaymentSucceeded, SubscriptionActivator(subscription_service))
+    bus.subscribe(PaymentPending, notifications)
+    bus.subscribe(PaymentFailed, notifications)
+    bus.subscribe(SubscriptionActivated, notifications)
+    return bus
+```
+
+`api/deps.py` створює одну шину на HTTP-запит (`get_event_bus`), а FastAPI кешує залежність, тож усі сервіси запиту
+публікують в ту саму шину. CLI `grant_premium` викликає ту саму функцію.
+
+**Транзакційна семантика.**
+- Шина синхронна і живе в межах однієї сесії. Обробники отримують цю сесію і працюють у транзакції видавця: оплата,
+  підписка і сповіщення комітяться разом у `get_db`.
+- Обробники не комітять, а шина не ловить винятки. Помилка будь-якого обробника доходить до `get_db` і відкочує всю
+  транзакцію. Тест `test_observer_failure_rolls_back_payment_and_subscription` підмінює `NotificationService.handle`
+  на виняток і перевіряє, що платіж лишився `created`, а підписки й сповіщень немає.
+- Вкладені публікації обробляються в глибину: `PaymentSucceeded → SubscriptionActivator → grant → publish
+  (SubscriptionActivated) → NotificationService`, і лише потім наступний підписник `PaymentSucceeded`.
+- Повторна підписка того самого обробника не дублює виклики. Обробник може відписатися під час публікації, бо шина
+  ітерує по знімку списку.
+- `WatchFinished` публікується лише на переході «не завершено → завершено». У Дні 4 підписників немає, у Дні 5 його
+  слухатимуть рекомендації та статистика.
+
+**Чому саме Observer.**
+- OCP: нова реакція (статистика доходів, email) — це новий клас-обробник і один рядок `subscribe`. Жоден видавець не
+  змінюється.
+- SRP і Low Coupling: `BillingService` відповідає лише за життєвий цикл платежу. Він не знає, що успіх означає нову
+  підписку і сповіщення.
+- DIP/ISP: видавці залежать від протоколу з одним методом `publish`, тому в unit-тестах їх перевіряють на
+  `RecordingPublisher` без шини і без БД.
+- Одне правило для всіх джерел: `SubscriptionActivated` публікує `SubscriptionService.grant`, тож сповіщення
+  отримують і оплата, і адмін-видача, і CLI.
+- Синхронність обрано свідомо: активація підписки має бути атомарною з оплатою. Асинхронна черга дала б вікно, коли
+  платіж успішний, а доступу ще немає, і вимагала б transactional outbox.
+
+**Відмінності від канонічної схеми GoF.** У GoF кожен Subject сам тримає список спостерігачів. Тут Subject винесено
+в окремий канал подій (варіант Event Aggregator). Видавці не знають про спостерігачів навіть через `attach`,
+підписки задає composition root. Подія передається push-моделлю як незмінний об'єкт, а не через `getState()`.
+
+### 3.4 Factory Method — політики планів
+
+Файл: `backend/app/patterns/plan_factory.py`. Тести: `backend/tests/test_plan_factory.py`,
+`backend/tests/test_subscriptions.py`, `backend/tests/test_billing.py`.
+
+**Проблема.** План визначає набір правил: максимальну якість, рекламу, ціну, тривалість, чи можна його купити, на
+який план можна перейти, опис для сторінки тарифів. До Дня 4 `SubscriptionService` просто копіював поля рядка `Plan`
+у `PlaybackPolicy`. Правила виду плану («Free завжди з рекламою і не продається», «Premium ніколи не показує рекламу»)
+довелося б дописувати як `if plan.code == "free"` у підписках, оплаті та сторінці тарифів. Тоді новий план змінював
+би всі ці місця.
+
+**Рішення.** Кожен вид плану — окремий продукт `PlanPolicy`. Його створює свій кретор. Операції кретора
+(`build_playback_policy`, `quote`) працюють із продуктом лише через абстрактний інтерфейс, а який саме продукт
+створити, вирішує підклас у factory method `create_policy`.
+
+```mermaid
+classDiagram
+    direction LR
+    class PlanPolicy {
+        <<Product>>
+        +plan_code: str
+        +name: str
+        +max_height: int
+        +ads_enabled: bool
+        +price: Decimal
+        +duration_days: int
+        +is_purchasable: bool
+        +describe() str
+        +can_upgrade_to(other) bool
+    }
+    class FreePlanPolicy {
+        <<ConcreteProduct>>
+    }
+    class PremiumPlanPolicy {
+        <<ConcreteProduct>>
+        -duration_days: int
+    }
+    class PlanPolicyCreator {
+        <<Creator>>
+        +plan_code: str
+        +create_policy(plan) PlanPolicy*
+        +build_playback_policy(plan) PlaybackPolicy
+        +quote(plan) PlanQuote
+    }
+    class FreePlanCreator {
+        <<ConcreteCreator>>
+        +create_policy(plan) PlanPolicy
+    }
+    class PremiumPlanCreator {
+        <<ConcreteCreator>>
+        -duration_days: int
+        +create_policy(plan) PlanPolicy
+    }
+    class PlanPolicyRegistry {
+        +creator_for(code) PlanPolicyCreator
+    }
+    class PlanQuote {
+        <<value>>
+    }
+    class PlaybackPolicy {
+        <<value>>
+    }
+    class SubscriptionService {
+        <<Client>>
+    }
+    class BillingService {
+        <<Client>>
+    }
+    PlanPolicy <|-- FreePlanPolicy
+    PlanPolicy <|-- PremiumPlanPolicy
+    PlanPolicyCreator <|-- FreePlanCreator
+    PlanPolicyCreator <|-- PremiumPlanCreator
+    FreePlanCreator ..> FreePlanPolicy : створює
+    PremiumPlanCreator ..> PremiumPlanPolicy : створює
+    PlanPolicyCreator ..> PlanPolicy : використовує
+    PlanPolicyCreator ..> PlanQuote
+    PlanPolicyCreator ..> PlaybackPolicy
+    PlanPolicyRegistry o-- PlanPolicyCreator
+    SubscriptionService --> PlanPolicyRegistry
+    BillingService --> PlanPolicyRegistry
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Product | `PlanPolicy` (ABC) | контракт політики: якість, реклама, ціна, тривалість, `is_purchasable`, `describe()`, `can_upgrade_to()` |
+| ConcreteProduct | `FreePlanPolicy`, `PremiumPlanPolicy` | правила конкретного виду плану |
+| Creator | `PlanPolicyCreator` (ABC) | factory method `create_policy(plan)` і операції над продуктом `build_playback_policy(plan)`, `quote(plan)` |
+| ConcreteCreator | `FreePlanCreator`, `PremiumPlanCreator(duration_days)` | обирають клас продукту; Premium отримує тривалість із `PREMIUM_DAYS` |
+| Client | `SubscriptionService`, `BillingService` | отримують кретор з `PlanPolicyRegistry` за `plan.code` і викликають його операції |
+
+**Що звідки береться.**
+- **Правила виду плану зашиті в класах політик.** Free завжди безкоштовний, завжди з рекламою, без терміну дії,
+  не купується і може перейти на будь-який платний план. Premium завжди без реклами, купується, діє `duration_days`
+  днів і вже є найвищим планом. Ці правила не можна зламати даними в БД: тест
+  `test_plan_kind_rules_are_fixed_by_the_policy_class` передає Free з ціною 10 і без реклами, а політика все одно
+  дає 0 і рекламу.
+- **Налаштовувані значення беруться з БД:** `name`, `price_month` (для Premium) і `max_height`. Їх можна змінити
+  сідом або адмінкою без зміни коду.
+- **Колонка `plans.ads_enabled` політикою не використовується.** Вона лишилась від початкової схеми Дня 1 і
+  заповнюється сідом для узгодженості, але джерело правди про рекламу — клас політики.
+
+**Використання.**
+
+```python
+# SubscriptionService: політика для PlaybackProxy
+def policy_for(self, user: User) -> PlaybackPolicy:
+    plan = self.current_plan(user)
+    return self.plan_policies.creator_for(plan.code).build_playback_policy(plan)
+
+# BillingService.checkout: ціна і правила покупки
+creator = self.plan_policies.creator_for(plan.code)
+target = creator.create_policy(plan)
+if not target.is_purchasable: ...                                   # 422 plan_not_purchasable
+if current.plan_code != target.plan_code and not current.can_upgrade_to(target): ...   # 409
+quote = creator.quote(plan)                                         # ціна, валюта, тривалість, опис
+```
+
+`GET /api/plans` віддає `quote()` кожного плану. Тривалість подовження при оплаті (`grant` без `days`) теж береться
+з політики. Невідомий код плану дає `UnknownPlanError` (422 `unknown_plan`). Кретор відмовляється будувати політику
+для плану іншого виду (`ValueError`), тож переплутати кретори неможливо.
+
+**Чому Factory Method, а не Simple Factory.** Simple Factory — це одна функція з `if code == ...`, яка повертає
+об'єкт. Тут у Creator є власні операції (`build_playback_policy`, `quote`), написані один раз через абстрактний
+`PlanPolicy`, а підкласи перевизначають лише крок створення. Реєстр не створює продукти, він тільки обирає
+ConcreteCreator за кодом, тобто конфігурує клієнта.
+
+**Чому патерн доречний.**
+- OCP: новий план «Family» — це `FamilyPlanPolicy`, `FamilyPlanCreator`, один рядок у `default_plan_registry` і
+  рядок у сіді. `SubscriptionService`, `BillingService`, `PlaybackProxy` і роути не змінюються.
+- Information Expert / Polymorphism: правила плану знає сама політика, тому в сервісах немає розгалужень за кодом
+  плану.
+- DIP: `PlaybackProxy` як і раніше залежить від `PlaybackPolicyProvider`, а не від фабрики. Підміна джерела політики
+  пройшла без жодної зміни в проксі.
+- Тестованість: кретори перевіряються на об'єктах `Plan` у пам'яті, без БД.
+
+### 3.5 Adapter — платіжний шлюз
+
+Файл: `backend/app/patterns/payment_gateway.py`. Тести: `backend/tests/test_payment_gateway.py`,
+`backend/tests/test_billing.py`.
+
+**Проблема.** Реальні еквайри (LiqPay, monobank, Stripe) мають власні SDK. Суми там у копійках, валюта — числовим
+кодом ISO 4217, статуси — власними рядками, відповіді — словниками, помилки — власними винятками. Якщо
+`BillingService` працюватиме з SDK напряму, ці деталі розтечуться по бізнес-логіці. Тоді зміна провайдера означає
+переписування оплати, а тести потребують мережі.
+
+**Рішення.** Сервіс працює з інтерфейсом `PaymentGateway`, сформульованим у термінах нашого домену. Для конкретного
+провайдера пишеться об'єктний адаптер, який тримає SDK і перекладає виклики. У проєкті SDK імітує
+`MockPaymentProvider`. Його API навмисно несумісний і нічого не знає про наші моделі.
+
+```mermaid
+classDiagram
+    direction LR
+    class BillingService {
+        <<Client>>
+    }
+    class PaymentGateway {
+        <<Target>>
+        +provider_name: str
+        +create_payment(payment_id, amount: Decimal, currency, description) GatewayPayment
+        +get_status(external_id) PaymentStatus
+    }
+    class PaymentSimulator {
+        <<interface>>
+        +simulate(external_id, outcome) GatewayPayment
+    }
+    class MockGatewayAdapter {
+        <<Adapter>>
+        -provider: MockPaymentProvider
+        +create_payment(...) GatewayPayment
+        +get_status(external_id) PaymentStatus
+        +simulate(external_id, outcome) GatewayPayment
+    }
+    class MockPaymentProvider {
+        <<Adaptee>>
+        +open_invoice(sum_kop: int, ccy: str, memo, merchant_ref) dict
+        +settle(invoice_id, scenario: str) dict
+        +inspect(invoice_id) dict
+    }
+    class GatewayPayment {
+        <<value>>
+        +external_id: str
+        +status: PaymentStatus
+        +amount: Decimal
+        +currency: str
+    }
+    BillingService --> PaymentGateway
+    BillingService --> PaymentSimulator
+    MockGatewayAdapter ..|> PaymentGateway
+    MockGatewayAdapter ..|> PaymentSimulator
+    MockGatewayAdapter o-- MockPaymentProvider : provider
+    PaymentGateway ..> GatewayPayment
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Target | `PaymentGateway` (Protocol) | доменний контракт: гривні як `Decimal`, `PaymentStatus`, наші винятки |
+| Adaptee | `MockPaymentProvider` | «стороння бібліотека»: копійки, `"980"`, стани `NEW`/`WAIT`/`OK`/`DECLINED`, словники, `MockProviderError(err_code)` |
+| Adapter | `MockGatewayAdapter` | реалізує Target, тримає Adaptee (композиція) і перекладає дані в обидва боки |
+| Client | `BillingService` | працює лише з `PaymentGateway` і `PaymentSimulator` |
+
+**Що перекладає адаптер.**
+
+| Наш домен | Провайдер |
+|---|---|
+| `Decimal("99.00")` грн | `9900` копійок (дробова копійка → `ValueError`) |
+| `"UAH"` | `"980"` |
+| `create_payment` / `get_status` / `simulate` | `open_invoice` / `inspect` / `settle` |
+| `PaymentOutcome.success / pending / failed` | сценарій `"approve"` / `"hold"` / `"decline"` |
+| `created` / `pending` / `success` / `failed` | `"NEW"` / `"WAIT"` / `"OK"` / `"DECLINED"` (невідомий стан → `PaymentGatewayError`) |
+| `GatewayPaymentNotFound` (502) | `E_NO_INVOICE` |
+| `GatewayStateConflict` (409) | `E_FINAL_STATE` |
+| `PaymentGatewayError` (502) | будь-який інший код помилки, наприклад `E_BAD_SUM` |
+
+`PaymentSimulator.simulate` винесено в окремий протокол (ISP). Вибір результату — це можливість лише тестового
+шлюзу, тому її немає в Target. Реальний адаптер (наприклад, `LiqPayGatewayAdapter`) реалізує лише
+`PaymentGateway`, а статус отримуватиме з webhook або `get_status`.
+
+**Чому Adapter.**
+- Protected Variations: зміна провайдера зачіпає лише новий клас-адаптер і рядок у `get_mock_gateway`.
+  `BillingService`, події і тести сценаріїв не змінюються.
+- SRP: одиниці виміру, коди валют і статусів зосереджені в одному класі, а сервіс оперує доменними поняттями.
+- Тестованість: перетворення перевіряються unit-тестами на справжньому mock-провайдері без HTTP і БД.
+- Об'єктний адаптер (композиція), а не класовий (успадкування від SDK). Адаптер не тягне в наш код весь API
+  провайдера, а провайдера можна підмінити в тестах (`dependency_overrides[get_mock_gateway]`).
+
+**Відомі спрощення.**
+- Провайдер тримає invoice у пам'яті процесу (`threading.Lock`), один екземпляр на застосунок (`lru_cache`). Після
+  рестарту він не знає старих invoice. `BillingService` це враховує: якщо шлюз повертає `GatewayPaymentNotFound` для
+  нефінального платежу, сервіс перевідкриває invoice через `create_payment`, оновлює `external_id` і продовжує оплату
+  (`test_pending_payment_survives_gateway_restart`).
+- Результат платежу задає сам користувач на сторінці оплати. Цей ендпоінт (`mock-result`) доступний лише при
+  `PAYMENTS_MOCK_ENABLED=true` (так за замовчуванням), інакше повертає 404 `mock_payments_disabled`. Адмін-резолв
+  `pending` від прапорця не залежить.
 
 ## 4. Оплата (mock)
 
-1. `POST /billing/checkout {plan_code}` → створює `Payment(status=created)`, повертає `payment_id`.
-2. UI показує сторінку оплати з вибором результату: **success / pending / failed**.
-3. `POST /billing/payments/{id}/mock-result {outcome}` → MockGateway повертає результат:
-   - success → `Payment=success`, подія `PaymentSucceeded`, підписка Premium активна на 30 днів;
-   - pending → `Payment=pending`, підписка не змінюється; адмін або користувач може пізніше «підтвердити» (повторний виклик);
-   - failed → `Payment=failed`, підписка не змінюється.
+| Запит | Хто | Відповідь |
+|---|---|---|
+| `GET /api/plans` | усі | `[{code, name, price, currency, duration_days, ads_enabled, max_height, description, purchasable}]` з `quote()` політик |
+| `POST /api/billing/checkout {plan_code}` | користувач | 201 `{payment_id, amount, currency, status: created, plan}`; Free → 422 `plan_not_purchasable`, невідомий план → 404 |
+| `POST /api/billing/payments/{id}/mock-result {outcome}` | власник платежу | `PaymentRead`; чужий або відсутній → 404 `payment_not_found`; фінальний статус → 409 `payment_finalized` |
+| `GET /api/billing/payments` | користувач | історія власних платежів, від нових до старих |
+| `POST /api/subscriptions/cancel` | користувач | `{plan_code, expires_at, cancelled: true}`; без підписки → 409 `no_active_subscription` |
+| `GET /api/users/me` | користувач | профіль + `subscription: {plan_code, expires_at, cancelled}` |
+| `GET /api/notifications?unread_only&limit` | користувач | `{items, unread}` |
+| `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all` | користувач | позначити прочитаним; чуже → 404 |
+| `GET /api/admin/payments?status&page&page_size` | адмін | `{items (+user_email), total, page, page_size}` |
+| `POST /api/admin/payments/{id}/resolve {outcome: success\|failed}` | адмін | лише для `pending`, інакше 409 `payment_not_pending` |
+| `POST /api/admin/users/{id}/subscription {action: grant\|revoke, days?}` | адмін | видати Premium (за замовчуванням на тривалість плану) або забрати одразу |
+
+**Статуси платежу.**
+
+```mermaid
+stateDiagram-v2
+    [*] --> created : checkout
+    created --> pending : outcome=pending
+    created --> success : outcome=success
+    created --> failed : outcome=failed
+    pending --> pending : повтор pending (без подій)
+    pending --> success : користувач або адмін
+    pending --> failed : користувач або адмін
+    success --> success : повтор success (ідемпотентно)
+    success --> [*]
+    failed --> [*]
+```
+
+**Послідовність успішної оплати.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as SPA
+    participant R as Router /api/billing
+    participant B as BillingService
+    participant F as PremiumPlanCreator
+    participant A as MockGatewayAdapter
+    participant M as MockPaymentProvider
+    participant E as EventBus
+    participant SA as SubscriptionActivator
+    participant SS as SubscriptionService
+    participant N as NotificationService
+    participant DB as PostgreSQL
+    participant X as PlaybackProxy
+    U->>R: POST /checkout {plan_code: premium}
+    R->>B: checkout(user, "premium")
+    B->>F: create_policy(plan), quote(plan)
+    F-->>B: PlanQuote(99.00 UAH, 30 днів, purchasable)
+    B->>DB: INSERT payment (created)
+    B->>A: create_payment(id, 99.00, "UAH", "Cinema Premium")
+    A->>M: open_invoice(9900, "980", ...)
+    M-->>A: {"invoice_id": "inv_…", "state": "NEW"}
+    A-->>B: GatewayPayment(created)
+    R-->>U: 201 {payment_id, amount, plan}
+    U->>R: POST /payments/{id}/mock-result {outcome: success}
+    R->>B: submit_mock_result(user, id, success)
+    B->>DB: SELECT … FOR UPDATE (лише власний платіж)
+    B->>A: get_status(invoice_id)
+    A->>M: inspect(invoice_id)
+    M-->>A: {"state": "NEW"}
+    B->>A: simulate(invoice_id, success)
+    A->>M: settle(invoice_id, "approve")
+    M-->>A: {"state": "OK"}
+    A-->>B: PaymentStatus.SUCCESS
+    B->>DB: UPDATE payment (success, paid_at)
+    B->>E: publish(PaymentSucceeded)
+    E->>SA: handle(event, session)
+    SA->>SS: grant(user_id, "premium")
+    SS->>DB: продовжити від max(now, expires_at) на 30 днів або створити підписку
+    SS->>E: publish(SubscriptionActivated)
+    E->>N: handle(event, session)
+    N->>DB: INSERT notification «Підписку Premium активовано до …»
+    R-->>U: 200 {status: success}
+    Note over R,DB: get_db комітить одну транзакцію: платіж, підписка, сповіщення
+    U->>X: GET /api/titles/{id}/playback
+    X->>SS: policy_for(user)
+    SS->>F: build_playback_policy(premium plan)
+    F-->>X: PlaybackPolicy(premium, 1080, без реклами)
+    X-->>U: 360p / 720p / 1080p, ads.enabled = false
+```
+
+**Правила і гарантії.**
+- Ціна платежу береться з `quote()` політики плану, а не з тіла запиту.
+- Купити можна платний план, на який дозволено перехід (`can_upgrade_to`), або той самий план, що вже активний. Тоді
+  підписка подовжується від поточного `expires_at`, а не від сьогодні.
+- Рядок платежу блокується `SELECT … FOR UPDATE`, тому два паралельні `success` не продовжать підписку двічі.
+  Повторний `success` для вже успішного платежу повертає 200 без нової події.
+- `pending → pending` не публікує подій і не створює повторних сповіщень. `pending` можна завершити тим самим
+  ендпоінтом або адмін-резолвом.
+- Звірка зі шлюзом: перед `settle` сервіс питає статус у шлюзу. Якщо шлюз уже має фінальний статус (наприклад,
+  попередня транзакція відкотилась після відповіді шлюзу), сервіс бере його без повторного `settle`. Якщо шлюз не
+  знає invoice (рестарт), сервіс відкриває новий і продовжує.
+- Скасування (`cancel`) не забирає доступ: Premium діє до `expires_at`, повторна оплата знімає скасування.
+  Адміністратор забирає Premium одразу (`revoke`: статус `expired`, `expires_at = now`).
 
 ## 5. HLS
 
@@ -463,8 +963,9 @@ Premium — до 1080p без реклами. План визначає `Subscri
 запису історії, для завершеного перегляду — 0. Токен у query дозволено лише для маршруту маніфесту, бо hls.js
 завантажує його сам і не завжди може передати заголовок.
 
-Ручна перевірка преміуму без оплати: `python -m app.tools.grant_premium <email> [--days 30]` — створює або продовжує
-активну Premium-підписку.
+Ручна перевірка преміуму без оплати: `python -m app.tools.grant_premium <email> [--days N]` — тонка обгортка над
+`SubscriptionService.grant`. Вона створює або продовжує Premium (за замовчуванням на тривалість плану), публікує
+`SubscriptionActivated` і тому створює сповіщення, як і оплата чи адмін-видача.
 
 **Відоме спрощення: сегменти віддаються статично.** Проксі контролює лише master-плейлист. Варіантні плейлисти
 (`/media/hls/<id>/1080p/index.m3u8`) і сегменти `.ts` роздає `StaticFiles` без перевірки, тож користувач Free, який
