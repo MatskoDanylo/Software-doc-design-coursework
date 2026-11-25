@@ -7,6 +7,7 @@ const LINKS = [
   { to: '/admin/payments', label: 'Платежі', end: false },
   { to: '/admin/users', label: 'Користувачі', end: false },
   { to: '/admin/reports', label: 'Звіти', end: false },
+  { to: '/admin/settings', label: 'Налаштування', end: false },
 ]
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>

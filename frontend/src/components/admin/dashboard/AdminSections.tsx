@@ -7,6 +7,7 @@ const SECTIONS = [
   { title: 'Платежі', text: 'Історія оплат і підтвердження платежів, що очікують', to: '/admin/payments' },
   { title: 'Користувачі', text: 'Акаунти, видача і зняття Premium', to: '/admin/users' },
   { title: 'Звіти', text: 'Популярність, активність, доходи, експорт CSV', to: '/admin/reports' },
+  { title: 'Налаштування', text: 'Стратегія рекомендацій, ваги гібриду, вікно популярності', to: '/admin/settings' },
 ]
 
 export default function AdminSections() {

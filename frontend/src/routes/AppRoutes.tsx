@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import PageLoader from '../components/PageLoader'
 import AdminGenresPage from '../pages/admin/AdminGenresPage'
 import AdminPaymentsPage from '../pages/admin/AdminPaymentsPage'
+import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 import AdminTitleCreatePage from '../pages/admin/AdminTitleCreatePage'
 import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
 import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
@@ -74,6 +75,7 @@ export default function AppRoutes() {
             <Route path="genres" element={<AdminGenresPage />} />
             <Route path="payments" element={<AdminPaymentsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="settings" element={<AdminSettingsPage />} />
             <Route
               path="reports"
               element={

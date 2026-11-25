@@ -13,6 +13,7 @@ export const adminReportsApi = {
 }
 
 export const adminReportKeys = {
+  all: ['admin', 'reports'] as const,
   report: (kind: ReportKind, params: ReportParams) => ['admin', 'reports', kind, params] as const,
   dashboard: ['admin', 'dashboard'] as const,
 }
