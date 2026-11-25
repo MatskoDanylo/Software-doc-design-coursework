@@ -23,7 +23,8 @@ flowchart LR
     A --> UC10(CRUD фільмів, серіалів, жанрів)
     A --> UC11(Завантажити відео, запустити HLS-конвертацію)
     A --> UC12(Керувати користувачами і підписками)
-    A --> UC13(Переглядати звіти)
+    A --> UC13(Переглядати й експортувати звіти, дашборд)
+    A --> UC14(Налаштовувати рекомендації та часовий пояс звітів)
 ```
 
 Примітка: Користувач наслідує можливості Гостя, Преміум-користувач — Користувача.
@@ -48,6 +49,9 @@ erDiagram
     EPISODE ||--o| VIDEO_ASSET : "episode video"
     TITLE ||--o{ WATCH_HISTORY : in
     EPISODE ||--o{ WATCH_HISTORY : in
+    TITLE ||--o| TITLE_STATS : "агрегат переглядів"
+    TITLE ||--o{ TITLE_VIEWER : "завершили"
+    USER ||--o{ TITLE_VIEWER : "завершив"
 
     USER { int id string email string password_hash string role datetime created_at }
     PROFILE { int user_id string display_name string avatar_url string country }
@@ -62,6 +66,9 @@ erDiagram
     VIDEO_ASSET { int id string hls_path string status text error_message int duration_sec int title_id int episode_id }
     FAVORITE { int user_id int title_id datetime added_at }
     WATCH_HISTORY { int id int user_id int title_id int episode_id int progress_sec bool finished datetime last_watched }
+    TITLE_STATS { int title_id int unique_viewers int completions datetime last_watched_at }
+    TITLE_VIEWER { int title_id int user_id datetime first_finished_at }
+    APP_SETTING { string key json value datetime updated_at }
 ```
 
 Плани створюються сідом (`python -m app.seed`): `free` (реклама, до 720p, 0 грн) і `premium` (без реклами, до 1080p,
@@ -105,6 +112,16 @@ erDiagram
 - Популярність у каталозі — кількість різних користувачів, які дивились тайтл (`COUNT(DISTINCT user_id)`), тому
   перегляд кількох епізодів серіалу одним користувачем не завищує рейтинг.
 
+**Статистика переглядів і налаштування.**
+- `TITLE_STATS` — накопичувальний агрегат на тайтл: `unique_viewers` (скільки різних користувачів хоча б раз завершили
+  тайтл або його епізод), `completions` (кількість завершень), `last_watched_at` (останнє завершення). Таблицю веде
+  спостерігач `TitleStatsUpdater` (розділ 3.3), читає `PopularityStrategy` (розділ 3.6).
+- `TITLE_VIEWER` — службова таблиця «хто вже врахований у `unique_viewers`». Складений первинний ключ
+  (тайтл, користувач) робить облік ідемпотентним: повторне завершення тим самим користувачем збільшує лише
+  `completions`.
+- `APP_SETTING` — налаштування адміністратора у вигляді «ключ → JSON». Типізацію і значення за замовчуванням дає
+  `SettingsService` (розділ 6), тому відсутній або зіпсований рядок не ламає застосунок.
+
 ## 3. Патерни і взаємодія
 
 ```
@@ -115,25 +132,74 @@ Router ──> CatalogService (Director) ──> TitleQueryBuilder ──build()
 Router ──> BillingService ──> PaymentGateway = MockGatewayAdapter ──> MockPaymentProvider (Adapter)
                 │  ціна, тривалість, «чи можна купити»: PlanPolicyCreator.quote() (Factory Method)
                 └─ зміна статусу ──> EventBus.publish(PaymentSucceeded | PaymentPending | PaymentFailed)
+HistoryService.record_progress ──(just_finished)──> EventBus.publish(WatchFinished)
 EventBus (Observer), підписки лише в app/event_wiring.py:
    PaymentSucceeded ──> SubscriptionActivator ──> SubscriptionService.grant ──> publish(SubscriptionActivated)
    PaymentPending | PaymentFailed | SubscriptionActivated ──> NotificationService ──> таблиця notifications
-HistoryService.record_progress ──(just_finished)──> EventBus.publish(WatchFinished)        [підписник — День 5]
-Router ──> RecommendationService ──> RecommendationStrategy (Genre | Popularity | Hybrid)   [День 5]
-Reports: ReportGenerator (Template Method) ──> PopularTitles | UserActivity | Revenue       [День 5]
+   WatchFinished ──> TitleStatsUpdater ──> таблиці title_stats, title_viewers
+Router ──> RecommendationService (Context) ──> StrategyRegistry ──> RecommendationStrategy (Strategy)
+                │  Popularity | GenreAffinity | SimilarTitles | Hybrid (композиція тих самих стратегій)
+                ├─ налаштування: SettingsService ──> app_settings (стратегія, ваги гібрида, вікно популярності)
+                └─ дані: RecommendationRepository ──> watch_history, title_stats, favorites, жанри
+Router ──> ReportService ──> ReportGenerator.generate() (Template Method)
+                │  PopularTitlesReport | UserActivityReport | SubscriptionRevenueReport
+                ├─ часовий пояс: SettingsService.report_timezone()
+                └─ експорт: CsvReportExporter (UTF-8 з BOM, роздільник «;»)
 ```
 
-Як патерни працюють разом. Користувач оплачує Premium: `BillingService` бере ціну з політики плану (Factory Method),
-проводить платіж через адаптер шлюзу (Adapter) і публікує `PaymentSucceeded`. Спостерігачі в тій самій транзакції
-продовжують підписку і пишуть сповіщення (Observer). На наступному запиті відтворення проксі (Proxy) отримує від
-`SubscriptionService` політику Premium, створену тією самою фабрикою, і віддає 1080p без реклами. Жоден із цих класів
-не знає про інші напряму: їх пов'язують інтерфейси `PaymentGateway`, `EventPublisher`, `PlaybackPolicyProvider` і
-`PlanPolicyCreator`.
+```mermaid
+flowchart LR
+    subgraph catalog [Каталог і перегляд]
+        B[Builder<br/>TitleQueryBuilder]
+        PX[Proxy<br/>PlaybackProxy]
+    end
+    subgraph billing [Підписки й оплата]
+        FM[Factory Method<br/>PlanPolicyCreator]
+        AD[Adapter<br/>MockGatewayAdapter]
+    end
+    H[HistoryService]
+    OB[Observer<br/>EventBus]
+    ST[Strategy<br/>RecommendationStrategy]
+    TM[Template Method<br/>ReportGenerator]
+    CFG[SettingsService<br/>app_settings]
+    DB[(PostgreSQL)]
+    FM -- політика плану --> PX
+    FM -- ціна, тривалість --> AD
+    AD -- PaymentSucceeded --> OB
+    H -- WatchFinished --> OB
+    CFG -- стратегія, ваги, вікно --> ST
+    CFG -- часовий пояс --> TM
+    OB -- grant / notifications --> DB
+    OB -- title_stats --> DB
+    DB -- title_stats, watch_history --> ST
+    DB -- payments, watch_history, users --> TM
+    B -- каталог --> DB
+```
 
-GRASP: Controller (роутери), Information Expert (політика плану знає про рекламу, якість і ціну), Creator
-(`PlanPolicyCreator` створює політику, бо має всі дані для неї), Low Coupling / High Cohesion (шари), Polymorphism
-(політики планів, стратегії, шлюзи), Pure Fabrication (`EventBus`), Indirection (шина між видавцем і
-спостерігачами), Protected Variations (інтерфейси шлюзу і політики плану).
+Як патерни працюють разом.
+- **Оплата.** Користувач оплачує Premium: `BillingService` бере ціну з політики плану (Factory Method), проводить
+  платіж через адаптер шлюзу (Adapter) і публікує `PaymentSucceeded`. Спостерігачі в тій самій транзакції продовжують
+  підписку і пишуть сповіщення (Observer). На наступному запиті відтворення проксі (Proxy) отримує від
+  `SubscriptionService` політику Premium, створену тією самою фабрикою, і віддає 1080p без реклами.
+- **Перегляд → рекомендації.** Плеєр зберігає прогрес. На переході «не завершено → завершено» `HistoryService`
+  публікує `WatchFinished`, і `TitleStatsUpdater` оновлює `title_stats` (Observer). `PopularityStrategy` використовує
+  цю таблицю для тай-брейку й «популярного серед глядачів», `HybridStrategy` змішує її з жанровими вподобаннями та
+  схожістю (Strategy). Адміністратор змінює стратегію за замовчуванням, ваги чи вікно в `app_settings`, і вже
+  наступний запит рекомендацій іде за новими правилами без зміни коду.
+- **Дані → звіти.** Звіти (Template Method) читають те, що накопичили інші патерни: `payments.paid_at` після оплати
+  через Adapter, історію переглядів, реєстрації, активні підписки. Порядок кроків однаковий для всіх звітів, тому
+  перевірка періоду, часовий пояс із налаштувань і CSV-експорт однаково працюють для кожного.
+- **Каталог.** Пошук і фільтри будує Builder; він не залежить від інших патернів і лише читає ті самі таблиці.
+
+Жоден із цих класів не знає про інші напряму: їх пов'язують інтерфейси `PaymentGateway`, `EventPublisher`,
+`PlaybackPolicyProvider`, `PlanPolicyCreator`, `RecommendationSource`, `RecommendationConfigProvider` і вузькі
+протоколи джерел звітів.
+
+GRASP: Controller (роутери), Information Expert (політика плану знає про рекламу, якість і ціну; стратегія знає свою
+формулу балу), Creator (`PlanPolicyCreator` створює політику, бо має всі дані для неї), Low Coupling / High Cohesion
+(шари), Polymorphism (політики планів, стратегії рекомендацій, генератори звітів, шлюзи), Pure Fabrication
+(`EventBus`, `StrategyRegistry`, `ReportService`), Indirection (шина між видавцем і спостерігачами, реєстр між
+сервісом і стратегіями), Protected Variations (інтерфейси шлюзу, політики плану, стратегії, джерела даних).
 
 ### 3.1 Builder — пошук і фільтри каталогу
 
@@ -237,8 +303,8 @@ items, total = self.titles.search(query)
 - OCP: новий фільтр — це новий метод білдера і один рядок у директорі; репозиторій і роутер-контракт не змінюються.
 - DIP: `CatalogService` залежить від протоколу `TitleReader`, а не від SQLAlchemy-репозиторію.
 - Тестованість: кожен крок і їхні комбінації перевіряються окремо (44 unit-тести), без HTTP-шару.
-- Повторне використання: той самий білдер знадобиться для рекомендацій (вибірка кандидатів за жанрами й рейтингом)
-  та адмін-списків.
+- Повторне використання: той самий білдер можна застосувати для адмін-списків тайтлів. Рекомендації мають власні
+  запити кандидатів (`RecommendationRepository`), бо їм потрібні не сторінки каталогу, а ознаки тайтлів для балу.
 
 Відмінність від канонічної схеми GoF: абстрактного інтерфейсу Builder немає, бо існує одне подання продукту
 (SQLAlchemy `Select`). Якщо з'явиться інше джерело пошуку (наприклад, повнотекстовий індекс), достатньо виділити
@@ -442,11 +508,13 @@ GRASP: Protected Variations (правила доступу сховані за �
 ### 3.3 Observer — доменні події
 
 Файли: `backend/app/core/events.py` (події, `EventBus`, протоколи), `backend/app/event_wiring.py` (реєстрація),
-`backend/app/services/subscription_activator.py`, `backend/app/services/notification_service.py` (спостерігачі).
-Тести: `backend/tests/test_events.py`, `backend/tests/test_event_handlers.py`, `backend/tests/test_billing.py`.
+`backend/app/services/subscription_activator.py`, `backend/app/services/notification_service.py`,
+`backend/app/services/title_stats.py` (спостерігачі). Тести: `backend/tests/test_events.py`,
+`backend/tests/test_event_handlers.py`, `backend/tests/test_billing.py`, `backend/tests/test_title_stats.py`.
 
-**Проблема.** Успішна оплата має кілька наслідків: активувати або продовжити Premium, сповістити користувача, а в
-Дні 5 ще й оновити статистику доходів. Ті самі сповіщення потрібні, коли Premium видає адміністратор або CLI. Якщо
+**Проблема.** Успішна оплата має кілька наслідків: активувати або продовжити Premium і сповістити користувача. Ті самі
+сповіщення потрібні, коли Premium видає адміністратор або CLI. Завершений перегляд має оновити статистику
+популярності для рекомендацій. Якщо
 `BillingService` викликатиме все це напряму, він залежатиме від підписок, сповіщень і статистики, а кожна нова
 реакція на оплату змінюватиме код оплати (порушення OCP, високе зчеплення). Те саме з переглядами: `HistoryService`
 не має знати, хто цікавиться завершеним переглядом.
@@ -504,6 +572,15 @@ classDiagram
         <<ConcreteObserver>>
         +handle(event, session)
     }
+    class TitleStatsUpdater {
+        <<ConcreteObserver>>
+        +handle(WatchFinished, session)
+    }
+    class TitleStatsStore {
+        <<interface>>
+        +record_completion(title_id, user_id) bool
+        +rebuild() StatsTotals
+    }
     class BillingService
     class SubscriptionService
     class HistoryService
@@ -516,6 +593,8 @@ classDiagram
     EventBus o-- EventHandler : handlers
     SubscriptionActivator ..|> EventHandler
     NotificationService ..|> EventHandler
+    TitleStatsUpdater ..|> EventHandler
+    TitleStatsUpdater --> TitleStatsStore : record_completion()
     BillingService --> EventPublisher : PaymentSucceeded / Pending / Failed
     SubscriptionService --> EventPublisher : SubscriptionActivated
     HistoryService --> EventPublisher : WatchFinished
@@ -528,6 +607,7 @@ classDiagram
 | Observer | `EventHandler` (Protocol) | єдиний метод `handle(event, session)` |
 | ConcreteObserver | `SubscriptionActivator` | на `PaymentSucceeded` викликає `SubscriptionService.grant(user_id, plan_code)` |
 | ConcreteObserver | `NotificationService` | на `PaymentPending`, `PaymentFailed`, `SubscriptionActivated` пише сповіщення українською |
+| ConcreteObserver | `TitleStatsUpdater` | на `WatchFinished` викликає `TitleStatsStore.record_completion(title_id, user_id)` |
 | Стан, що передається | `PaymentSucceeded`, `PaymentPending`, `PaymentFailed`, `SubscriptionActivated`, `WatchFinished` | frozen dataclass (push-модель): обробник отримує всі дані і не може змінити подію для наступних |
 | Видавці | `BillingService`, `SubscriptionService`, `HistoryService` | залежать лише від `EventPublisher` |
 
@@ -545,6 +625,7 @@ def create_event_bus(session: Session, plan_policies: PlanPolicyRegistry) -> Eve
     bus.subscribe(PaymentPending, notifications)
     bus.subscribe(PaymentFailed, notifications)
     bus.subscribe(SubscriptionActivated, notifications)
+    bus.subscribe(WatchFinished, TitleStatsUpdater(TitleStatsRepository))
     return bus
 ```
 
@@ -561,12 +642,27 @@ def create_event_bus(session: Session, plan_policies: PlanPolicyRegistry) -> Eve
   (SubscriptionActivated) → NotificationService`, і лише потім наступний підписник `PaymentSucceeded`.
 - Повторна підписка того самого обробника не дублює виклики. Обробник може відписатися під час публікації, бо шина
   ітерує по знімку списку.
-- `WatchFinished` публікується лише на переході «не завершено → завершено». У Дні 4 підписників немає, у Дні 5 його
-  слухатимуть рекомендації та статистика.
+- `WatchFinished` публікується лише на переході «не завершено → завершено». Його слухає `TitleStatsUpdater`;
+  рекомендації читають результат із `title_stats`, а не підписуються на подію самі, бо рахують бали на запит.
+
+**Статистика переглядів (`TitleStatsUpdater`).**
+- Обробник викликає `TitleStatsRepository.record_completion`. Спершу `INSERT … ON CONFLICT DO NOTHING RETURNING`
+  у `title_viewers`: якщо рядок вставився, користувач новий для цього тайтлу. Потім upsert у `title_stats` одним
+  оператором: `completions + 1`, `unique_viewers + 1` лише для нового глядача, `last_watched_at = now()`. Інкремент
+  рахує БД, тому паралельні завершення не губляться.
+- Чому окрема таблиця глядачів. `HistoryService` публікує `WatchFinished` повторно, якщо користувач знову почав і
+  знову завершив тайтл (`finished` у `watch_history` при цьому повертається в `false` і назад). За самою історією
+  неможливо відрізнити «вже рахували» від «рахуємо вперше», тож без `title_viewers` повторний перегляд завищував би
+  `unique_viewers`. Серіал рахується так само: два епізоди одним користувачем дають `completions = 2`,
+  `unique_viewers = 1`.
+- Відновлення: `python -m app.tools.rebuild_stats` (або `TitleStatsService.rebuild()`, який викликає і демо-сід)
+  очищає обидві таблиці й заповнює їх `INSERT … SELECT` із завершених записів `watch_history`. Обмеження:
+  `watch_history` зберігає лише останній стан запису, тому після перерахунку кожна пара (користувач, епізод) дає не
+  більше одного завершення, а історичні повтори втрачаються.
 
 **Чому саме Observer.**
-- OCP: нова реакція (статистика доходів, email) — це новий клас-обробник і один рядок `subscribe`. Жоден видавець не
-  змінюється.
+- OCP: нова реакція — це новий клас-обробник і один рядок `subscribe`. Так у Дні 5 додано `TitleStatsUpdater`:
+  `HistoryService` не змінився жодним рядком.
 - SRP і Low Coupling: `BillingService` відповідає лише за життєвий цикл платежу. Він не знає, що успіх означає нову
   підписку і сповіщення.
 - DIP/ISP: видавці залежать від протоколу з одним методом `publish`, тому в unit-тестах їх перевіряють на
@@ -814,6 +910,325 @@ classDiagram
   `PAYMENTS_MOCK_ENABLED=true` (так за замовчуванням), інакше повертає 404 `mock_payments_disabled`. Адмін-резолв
   `pending` від прапорця не залежить.
 
+### 3.6 Strategy — рекомендації
+
+Файли: `backend/app/patterns/recommendation.py` (контекст, стратегії, реєстр),
+`backend/app/services/recommendation_service.py` (Context), `backend/app/repositories/recommendation_repository.py`
+(джерело даних). Тести: `backend/tests/test_recommendation_strategies.py` (unit-тести на фейковому джерелі),
+`backend/tests/test_recommendations_api.py`, `backend/tests/test_app_settings.py`.
+
+**Проблема.** Рекомендації рахуються кількома різними алгоритмами: «популярне зараз» для гостя, «за вашими жанрами»
+для користувача з історією, «схоже на цей тайтл» для сторінки тайтлу і їхня суміш для головної сторінки.
+Адміністратор має обирати алгоритм за замовчуванням і ваги суміші без зміни коду. Якщо писати це як
+`if strategy == "genre": … elif …` у сервісі, кожен новий алгоритм змінює сервіс, формули різних алгоритмів
+змішуються в одному методі, а перевірити кожну формулу окремо неможливо.
+
+**Рішення.** Кожен алгоритм — окремий клас зі спільним інтерфейсом `RecommendationStrategy.recommend(context, limit)`.
+Він повертає `ScoredTitle(title_id, score, reason)`, тобто бал і пояснення для користувача. `RecommendationService`
+(Context) не знає формул: він збирає `RecommendationContext`, обирає стратегію за кодом через `StrategyRegistry` і
+перетворює результат на картки `RecommendationRead`. Гібрид — теж стратегія, яка тримає інші стратегії з вагами
+(композиція через той самий інтерфейс).
+
+```mermaid
+classDiagram
+    direction LR
+    class RecommendationService {
+        <<Context>>
+        -registry: StrategyRegistry
+        -config: RecommendationConfigProvider
+        +recommend(user, limit, strategy_code) RecommendationList
+        +similar(title_id, limit, user) list
+        +choose_strategy(context, requested) str
+    }
+    class RecommendationStrategy {
+        <<Strategy>>
+        +code: str
+        +recommend(context, limit) list~ScoredTitle~*
+    }
+    class PopularityStrategy {
+        <<ConcreteStrategy>>
+        -window_days: int
+    }
+    class GenreAffinityStrategy {
+        <<ConcreteStrategy>>
+        +genre_weights(context) GenreWeights
+    }
+    class SimilarTitlesStrategy {
+        <<ConcreteStrategy>>
+        +similarity(seed, other) float
+    }
+    class HybridStrategy {
+        <<ConcreteStrategy>>
+        -components: list
+    }
+    class StrategyRegistry {
+        +register(code, factory)
+        +codes() tuple
+        +create(code, env) RecommendationStrategy
+    }
+    class RecommendationContext {
+        <<value>>
+        +user_id: int
+        +watched: frozenset
+        +finished: frozenset
+        +favorites: frozenset
+        +seed_title_id: int
+    }
+    class RecommendationSource {
+        <<interface>>
+        +popular(since, exclude, limit)
+        +features(title_ids)
+        +candidates(genre_ids, exclude, limit)
+        +similar_candidates(seed, exclude, limit)
+        +genre_names(genre_ids)
+    }
+    class RecommendationRepository
+    class RecommendationConfigProvider {
+        <<interface>>
+        +recommendation_config() RecommendationConfig
+    }
+    class SettingsService
+    RecommendationStrategy <|-- PopularityStrategy
+    RecommendationStrategy <|-- GenreAffinityStrategy
+    RecommendationStrategy <|-- SimilarTitlesStrategy
+    RecommendationStrategy <|-- HybridStrategy
+    HybridStrategy o-- RecommendationStrategy : components
+    RecommendationService --> StrategyRegistry
+    StrategyRegistry ..> RecommendationStrategy : створює
+    RecommendationService ..> RecommendationContext
+    RecommendationService --> RecommendationConfigProvider
+    SettingsService ..|> RecommendationConfigProvider
+    PopularityStrategy --> RecommendationSource
+    GenreAffinityStrategy --> RecommendationSource
+    SimilarTitlesStrategy --> RecommendationSource
+    RecommendationRepository ..|> RecommendationSource
+```
+
+| Роль GoF | Клас | Відповідальність |
+|---|---|---|
+| Strategy | `RecommendationStrategy` (ABC) | контракт `recommend(context, limit) -> list[ScoredTitle]`, код стратегії |
+| ConcreteStrategy | `PopularityStrategy` | популярне у вікні N днів, далі популярне за весь час, далі за рейтингом |
+| ConcreteStrategy | `GenreAffinityStrategy` | ваги жанрів з історії й Вибраного, бонус за рейтинг |
+| ConcreteStrategy | `SimilarTitlesStrategy` | схожість до `seed_title_id`: жанри, рік, країна |
+| ConcreteStrategy | `HybridStrategy` | зважене злиття інших стратегій з дедуплікацією |
+| Context | `RecommendationService` | збирає контекст, обирає стратегію, cold start, добір до `limit`, картки з `reason` |
+| Реєстр | `StrategyRegistry` | код → фабрика стратегії; невідомий код → 422 `unknown_strategy` |
+| Дані | `RecommendationSource` / `RecommendationRepository` | SQL-вибірки кандидатів і ознак; стратегії не знають про SQLAlchemy |
+
+**Алгоритми.** Бали кожної стратегії детерміновані, порядок — за `(-score, title_id)`. Тайтли, які користувач уже
+починав або дивився (будь-який запис `watch_history`), не рекомендує жодна стратегія.
+
+| Стратегія | Кандидати | Бал | `reason` |
+|---|---|---|---|
+| `popularity` | усі тайтли | три яруси: (а) різні глядачі за `watch_history.last_watched` у вікні `[now − N днів, now]`, потім завершення у вікні, тай-брейк `title_stats.unique_viewers`, `completions`; (б) решта з `title_stats`; (в) решта за рейтингом. Бал = `1 − місце/кількість` | «Популярне цього тижня» (N = 7) або «Популярне за останні N днів»; «Популярне серед глядачів»; «Високий рейтинг» |
+| `genre_affinity` | тайтли хоча б з одним жанром смаку, без переглянутих і вибраних | ваги: завершений тайтл 2.0, розпочатий 1.0, у Вибраному +1.5, нормалізація до суми 1; `0.8·Σ ваг жанрів кандидата + 0.2·rating/10` | «Бо ви дивились жанр «Драма»» або «Бо у вашому Вибраному є жанр «…»» |
+| `similar` | тайтли зі спільним жанром або тією самою країною, без seed і переглянутих | `0.6·Jaccard(жанри) + 0.25·max(0, 1 − abs(Δрік)/15) + 0.15·(та сама країна)` | «Схоже на «Матриця»» |
+| `hybrid` | кожен компонент з `limit·3` | бали компонента діляться на його максимум, далі `Σ вага·бал`; компоненти з вагою 0 пропускаються | `reason` компонента з найбільшим внеском |
+
+**Правила вибору в Context.**
+- Спершу перевіряється явний код стратегії: невідомий — 422 навіть для гостя.
+- Гість і користувач без історії та Вибраного (cold start) завжди отримують `popularity`. Інакше діє явний параметр
+  або `recommendation_default_strategy` з налаштувань (за замовчуванням `hybrid`).
+- `seed_title_id` у персональних рекомендаціях — останній завершений тайтл (або останній переглянутий), тому
+  гібрид пояснює частину карток як «Схоже на …».
+- Якщо стратегія повернула менше за `limit`, сервіс добирає популярними без дублів. Їхні бали масштабуються нижче
+  останнього основного, тож список лишається впорядкованим за `score`.
+- Відповідь `GET /api/recommendations` — `{strategy, items}`, де `strategy` — фактично використана стратегія.
+  `GET /api/titles/{id}/similar` завжди використовує `similar` і не добирає популярними, бо блок «Схожі» з
+  випадковими популярними тайтлами вводив би в оману.
+
+**Використання.**
+
+```python
+def recommend(self, user: User | None, limit: int, strategy_code: str | None = None) -> RecommendationList:
+    if strategy_code is not None:
+        self.registry.ensure_known(strategy_code)
+    env = self._env()
+    context = self._context(user)
+    code = self.choose_strategy(context, strategy_code or env.config.default_strategy)
+    items = env.create(code).recommend(context, limit)
+    if code != PopularityStrategy.code and len(items) < limit:
+        items = self._fill_with_popular(env, context, items, limit)
+    return RecommendationList(strategy=code, items=self._read(items, user))
+```
+
+Реєстр збирає гібрид із тих самих фабрик за вагами з налаштувань:
+
+```python
+def _hybrid(env: StrategyEnv) -> HybridStrategy:
+    return HybridStrategy([
+        (env.create(code), weight)
+        for code, weight in env.config.hybrid_weights.items()
+        if code != HybridStrategy.code
+    ])
+```
+
+**Чому Strategy.**
+- OCP: нова стратегія (наприклад, «вибір редакції») — це новий клас і один рядок `registry.register(...)` у
+  `default_strategy_registry`. `RecommendationService`, роутер і налаштування не змінюються; адміністратор одразу
+  бачить її в `available_strategies`. Це перевіряє тест `test_new_strategy_is_added_without_touching_existing_code`.
+- SRP: кожна формула живе у своєму класі і тестується окремо на `FakeSource` у пам'яті, без БД.
+- DIP: стратегії залежать від протоколу `RecommendationSource`, сервіс — від `RecommendationConfigProvider`. У День 5
+  джерело налаштувань замінилося зі статичних значень на `SettingsService`, а сервіс не змінився.
+- Гібрид — не окремий механізм, а ще одна стратегія, що складається з інших (елемент Composite). Тому вагові суміші
+  налаштовуються даними, а не кодом.
+- Альтернатива `if/elif` у сервісі ламала б усі три принципи і робила б неможливим тест формули без HTTP.
+
+**Відомі спрощення.**
+- Вікно популярності рахується за `watch_history.last_watched`, а історія зберігає лише останній стан запису. Якщо
+  користувач повернувся до старого перегляду, той «переїжджає» у вікно. Точна динаміка потребує журналу подій
+  переглядів.
+- Пул кандидатів обмежено 200 тайтлами з найвищим рейтингом. Для навчального каталогу цього достатньо; для великого
+  каталогу потрібні попередньо пораховані сусіди або векторний індекс.
+- Назва жанру в `reason` не відмінюється («жанр «Драма»»), щоб нові жанри від адміністратора не потребували
+  словника форм.
+
+### 3.7 Template Method — звіти
+
+Файли: `backend/app/services/reports.py` (шаблон, звіти, `ReportService`), `backend/app/services/report_export.py`
+(CSV), `backend/app/services/dashboard_service.py`, `backend/app/repositories/report_repository.py`. Тести:
+`backend/tests/test_report_template.py` (unit-тести шаблону й CSV), `backend/tests/test_reports.py` (звіти на
+контрольованих даних), `backend/tests/test_reports_api.py`.
+
+**Проблема.** Три звіти (популярні тайтли й жанри, активність користувачів, доходи від підписок) мають різні
+SQL-запити й метрики, але однаковий скелет: перевірити й доповнити період, зібрати сирі дані, агрегувати їх,
+порахувати підсумки, зібрати результат для JSON і CSV. Якщо кожен звіт пише цей скелет сам, перевірка періоду,
+дефолти, часовий пояс і структура відповіді розходяться між звітами. Помилку на межі періоду довелося б виправляти
+тричі.
+
+**Рішення.** Абстрактний клас `ReportGenerator` фіксує алгоритм у шаблонному методі `generate()`. Підкласи
+реалізують лише primitive operations і за потреби перевизначають hooks.
+
+```python
+@final
+def generate(self, params: ReportParams) -> Report:
+    period = self.validate(params)
+    rows = self.collect(period)
+    data = self.aggregate(rows, period)
+    summary = self.summarize(data, period)
+    return self.build(data, summary, period)
+```
+
+`generate` позначено `@final`, а `__init_subclass__` кидає `TypeError`, якщо підклас спробує його перевизначити.
+Тому порядок кроків гарантований і під час виконання, а не лише для статичного аналізатора (тест
+`test_template_method_cannot_be_overridden`).
+
+```mermaid
+classDiagram
+    direction LR
+    class ReportGenerator {
+        <<AbstractClass>>
+        +kind: str
+        +title: str
+        +generate(params) Report «final»
+        +validate(params) Period
+        +build(data, summary, period) Report
+        #collect(period) RowsT*
+        #aggregate(rows, period) DataT*
+        #summarize(data, period) tuple*
+        #sections(data, period) tuple*
+        #default_period(today) tuple «hook»
+        #default_group_by() GroupBy «hook»
+        #extra_validation(period) «hook»
+    }
+    class PopularTitlesReport {
+        <<ConcreteClass>>
+        +TOP_LIMIT = 10
+    }
+    class UserActivityReport {
+        <<ConcreteClass>>
+        +extra_validation(period)
+    }
+    class SubscriptionRevenueReport {
+        <<ConcreteClass>>
+        +default_period(today)
+    }
+    class ReportService {
+        +generate(kind, params) Report
+    }
+    class ReportSettingsProvider {
+        <<interface>>
+        +report_timezone() str
+    }
+    class CsvReportExporter {
+        +export(report) bytes
+        +filename(report) str
+    }
+    class ReportRepository
+    class PopularTitlesSource {
+        <<interface>>
+    }
+    class UserActivitySource {
+        <<interface>>
+    }
+    class RevenueSource {
+        <<interface>>
+    }
+    ReportGenerator <|-- PopularTitlesReport
+    ReportGenerator <|-- UserActivityReport
+    ReportGenerator <|-- SubscriptionRevenueReport
+    ReportService o-- ReportGenerator : за kind
+    ReportService --> ReportSettingsProvider
+    PopularTitlesReport --> PopularTitlesSource
+    UserActivityReport --> UserActivitySource
+    SubscriptionRevenueReport --> RevenueSource
+    ReportRepository ..|> PopularTitlesSource
+    ReportRepository ..|> UserActivitySource
+    ReportRepository ..|> RevenueSource
+    CsvReportExporter ..> ReportGenerator : експортує Report
+```
+
+| Роль GoF | Клас / метод | Відповідальність |
+|---|---|---|
+| AbstractClass | `ReportGenerator` | шаблонний метод `generate`; конкретні кроки `validate` (дефолти, `date_from ≤ date_to`, максимум 3660 днів) і `build` |
+| Template method | `generate(params)` | незмінний порядок `validate → collect → aggregate → summarize → build` |
+| Primitive operations | `collect`, `aggregate`, `summarize`, `sections` | абстрактні; кожен звіт реалізує власні запити, агрегацію, підсумки й таблиці |
+| Hooks | `default_period`, `default_group_by`, `extra_validation` | мають поведінку за замовчуванням (30 днів, по днях, без додаткових перевірок) |
+| ConcreteClass | `PopularTitlesReport` | топ-10 тайтлів за глядачами, завершеннями, Вибраним; жанри за сумою по всіх тайтлах періоду |
+| ConcreteClass | `UserActivityReport` | реєстрації й активні користувачі по днях/місяцях, час перегляду, середній прогрес, частка завершених; hook `extra_validation`: по днях не більше 366 днів |
+| ConcreteClass | `SubscriptionRevenueReport` | дохід і кількість успішних платежів за `paid_at`, платежі за статусами, активні Premium, конверсія; hook `default_period`: 90 днів |
+| Client | `ReportService` | обирає генератор за `kind` (невідомий → 404 `unknown_report`) і передає часовий пояс із налаштувань |
+
+**Що спільне для всіх звітів завдяки шаблону.**
+- Період: відсутні дати доповнюються з `default_period` (якщо задано лише `date_to`, береться та сама довжина
+  періоду), `date_from > date_to` → 422 `invalid_period` ще до будь-якого запиту в БД.
+- Часовий пояс: `report_timezone` з налаштувань (за замовчуванням `Europe/Kyiv`). Межі періоду —
+  `timezone(tz, date_from 00:00) ≤ ts < timezone(tz, date_to + 1 день 00:00)`, бакети — `date_trunc(day|month, ts AT
+  TIME ZONE tz)`, «сьогодні» для дефолтного періоду теж береться в цьому поясі. Подія о 23:30 UTC 10.11 потрапляє в
+  11.11 за Києвом і в 10.11 за UTC (тести в `test_reports.py` і `test_reports_api.py`).
+- Суцільні ряди: `fill_buckets` додає дні або місяці без подій із нулями, тож графіки не мають «дір».
+- Однакова структура `Report {kind, title, date_from, date_to, group_by, timezone, summary[], sections[]}`. Секції
+  описують колонки з українськими підписами, тому JSON і CSV будуються одним кодом.
+- Адміністратори не враховуються в користувацьких метриках.
+
+**Експорт.** `GET /api/admin/reports/{kind}?format=csv` віддає той самий `Report` через `CsvReportExporter`: UTF-8 з
+BOM (Excel правильно читає кирилицю), роздільник `;` і десяткова кома (стандартні налаштування Excel з українською
+локаллю), спершу заголовок (назва, період, групування, пояс), далі підсумки й кожна секція окремою таблицею.
+`Content-Disposition: attachment; filename="<kind>_<from>_<to>.csv"`. Експорт не знає про конкретні звіти, бо
+працює лише зі структурою `Report`.
+
+**Дашборд.** `GET /api/admin/dashboard` повертає KPI через `DashboardService` і той самий `ReportRepository`: усього
+користувачів, активні за 7 днів, активні Premium, дохід за 30 днів, тайтли з готовим відео (фільм з `ready`-відео
+або серіал із хоча б одним `ready`-епізодом). Це ковзні вікна від поточного моменту, тому часовий пояс їм не
+потрібен.
+
+**Чому Template Method, а не Strategy.** Звіти відрізняються кроками всередині одного алгоритму, а не алгоритмом
+цілком. Template Method тримає незмінну частину (перевірка, порядок, збирання результату) в базовому класі, а
+змінну — в підкласах (принцип Голлівуду: базовий клас викликає підклас, а не навпаки). Strategy тут дублювала б
+перевірку періоду і збирання `Report` у кожній стратегії. Рекомендації навпаки: алгоритми зовсім різні, а
+вибір між ними робиться під час виконання, тож там доречна Strategy.
+
+Інші принципи: OCP (новий звіт — новий підклас і рядок у `default_report_generators`; роутер, експорт і
+`ReportService` не змінюються), ISP (кожен звіт залежить від вузького протоколу джерела, а не від усього
+`ReportRepository`), DIP (джерела й пояс — протоколи, тому шаблон тестується на фейках без БД).
+
+**Відомі спрощення.**
+- `watch_history` зберігає лише останній стан перегляду, тому повторний перегляд «переносить» запис на нову дату.
+  Точні часові ряди потребують журналу подій переглядів.
+- Конверсія free → premium = платники в періоді / не-адмін користувачі, зареєстровані до кінця періоду, у відсотках.
+- Суми в звіті округлюються до копійок і віддаються числами (`float`), щоб їх одразу малював графік.
+
+
 ## 4. Оплата (mock)
 
 | Запит | Хто | Відповідь |
@@ -978,7 +1393,65 @@ Premium — до 1080p без реклами. План визначає `Subscri
    а файл віддає nginx.
 3. **Шифрування сегментів:** AES-128 (`#EXT-X-KEY`), де ключ видається через API лише авторизованим користувачам.
 
-## 6. План на 7 днів
+## 6. Рекомендації, звіти й адмін-налаштування
+
+### 6.1 Адмін-налаштування
+
+Файли: `backend/app/services/settings_service.py`, `backend/app/repositories/settings_repository.py`,
+`backend/app/schemas/settings.py`, `backend/app/api/routes/admin_settings.py`. Тести: `backend/tests/test_app_settings.py`.
+
+Налаштування зберігаються в `app_settings` рядками «ключ → JSON». `SettingsService` дає типізований вигляд і
+реалізує два протоколи: `RecommendationConfigProvider` (для `RecommendationService`) і `ReportSettingsProvider` (для
+`ReportService`). Споживачі не знають, що значення лежать у БД.
+
+| Ключ | Тип і межі | За замовчуванням | Хто використовує |
+|---|---|---|---|
+| `recommendation_default_strategy` | код з реєстру стратегій | `hybrid` | `RecommendationService` |
+| `hybrid_weights` | `{код: 0..1}`, лише стратегії з реєстру крім `hybrid`, хоча б одна вага > 0 | `genre_affinity 0.5`, `similar 0.3`, `popularity 0.2` | `HybridStrategy` через реєстр |
+| `popularity_window_days` | ціле 1..365 | 7 | `PopularityStrategy` |
+| `report_timezone` | IANA-назва, відома PostgreSQL (`pg_timezone_names`) | `Europe/Kyiv` | усі звіти |
+
+- `GET /api/admin/settings` повертає поточні значення, `available_strategies` (коди з реєстру, для випадного списку) і
+  `updated_at` (`null`, поки нічого не збережено).
+- `PUT /api/admin/settings` приймає всі чотири поля (повна заміна, зайві поля заборонені). Помилки: межі й типи → 422
+  `validation_error`, невідома стратегія або ключ ваги → 422 `unknown_strategy`, невідомий пояс → 422
+  `unknown_timezone`. При помилці нічого не записується.
+- Пояс перевіряється в тій самій базі поясів, яку використовують SQL-запити звітів, тому прийнята назва гарантовано
+  працює в `AT TIME ZONE` (і не потрібен пакет `tzdata` на Windows).
+- Якщо збережене значення стало некоректним (наприклад, стратегію прибрали з коду), саме цей ключ повертається до
+  значення за замовчуванням, а решта налаштувань лишається.
+- Налаштування читаються на кожен запит, тож зміни діють одразу без перезапуску.
+
+### 6.2 Ендпоінти Дня 5
+
+| Запит | Хто | Відповідь |
+|---|---|---|
+| `GET /api/recommendations?limit=1..50&strategy=` | усі (гість → `popularity`) | `{strategy, items: [TitleRead + reason, score]}`; невідома стратегія → 422 `unknown_strategy` |
+| `GET /api/titles/{id}/similar?limit=1..50` | усі | `[TitleRead + reason, score]`; відсутній тайтл → 404 `title_not_found` |
+| `GET /api/admin/settings`, `PUT /api/admin/settings` | адмін | див. 6.1 |
+| `GET /api/admin/reports/{kind}?date_from&date_to&group_by=day\|month&format=json\|csv` | адмін | `kind`: `popular-titles`, `user-activity`, `subscription-revenue`; невідомий → 404 `unknown_report`; `date_from > date_to` → 422 `invalid_period`; задовгий період → 422 `period_too_long` |
+| `GET /api/admin/dashboard` | адмін | `{total_users, active_users_7d, active_premium, revenue_30d, titles_with_video}` |
+
+### 6.3 Демо-дані для звітів і рекомендацій
+
+`python -m app.seed --demo-activity` (заодно завантажує демо-каталог) створює 40 користувачів
+`demo.user01@example.com` … `demo.user40@example.com` з паролем `demo12345`:
+- реєстрації рівномірно за останні 90 днів (3–4 на тиждень), у кожного 1–2 улюблені жанри, близько 70% переглядів
+  припадає на них;
+- історія з серіалами по епізодах і ~60% завершень; якщо в тайтлу є готове відео, прогрес не перевищує його
+  тривалості;
+- 1–4 тайтли у Вибраному;
+- кожен третій користувач — Premium з щомісячними продовженнями (підписка узгоджена з кількістю успішних оплат), плюс
+  платежі `failed` і `pending`. `pending`-платіж можна завершити адмін-резолвом: його invoice невідомий
+  mock-провайдеру, тому `BillingService` відкриває новий (розділ 3.5).
+
+Генератор детермінований (`random.Random(17)`, дати відносно поточного моменту). Повторний запуск видаляє лише
+40 демо-акаунтів за точним списком email (каскадом зникає їхня активність) і створює їх заново. Окремий прохід
+гарантує, що кожен із 90 днів має перегляд у межах 08:00–20:00 UTC, тобто той самий календарний день і за UTC, і за
+Києвом, тож графік активності не має порожніх днів. Наприкінці викликається перерахунок `title_stats`.
+
+
+## 7. План на 7 днів
 
 | День | Дата | Результат |
 |---|---|---|
@@ -986,6 +1459,6 @@ Premium — до 1080p без реклами. План визначає `Subscri
 | 2 | нд 22.11 | Каталог, пошук/фільтри (Builder), адмін CRUD для фільмів/жанрів |
 | 3 | пн 23.11 | ffmpeg → HLS, плеєр, Playback Proxy, Вибране, історія переглядів |
 | 4 | вт 24.11 | Плани, Factory Method, оплата (Adapter + mock UI), EventBus (Observer) |
-| 5 | ср 25.11 | Рекомендації (Strategy), звіти (Template Method), адмін-дашборд |
+| 5 | ср 25.11 | Статистика переглядів (Observer), рекомендації (Strategy), адмін-налаштування, звіти (Template Method), дашборд, демо-активність |
 | 6 | чт 26.11 | Тести, полірування UI, UML (Use Case, класи з кольорами патернів), скріни |
 | 7 | пт 27.11 | Звіт, README, фінальний прогін розгортання з нуля, запас часу |
