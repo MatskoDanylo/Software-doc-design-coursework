@@ -7,6 +7,7 @@ import Poster from '../components/catalog/Poster'
 import FavoriteButton from '../components/favorites/FavoriteButton'
 import RatingBadge from '../components/catalog/RatingBadge'
 import SeasonList from '../components/catalog/SeasonList'
+import SimilarTitles from '../components/catalog/SimilarTitles'
 import PageLoader from '../components/PageLoader'
 import WatchButton from '../components/player/WatchButton'
 import StateMessage from '../components/StateMessage'
@@ -81,6 +82,7 @@ export default function TitleDetailsPage() {
           <SeasonList seasons={title.seasons} />
         </section>
       )}
+      <SimilarTitles titleId={title.id} />
     </article>
   )
 }

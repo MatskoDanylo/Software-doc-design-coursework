@@ -42,7 +42,7 @@ describe('Continue watching', () => {
     renderApp('/')
 
     const row = await screen.findByRole('region', { name: 'Продовжити перегляд' })
-    const [episodeCard, movieCard] = within(row).getAllByRole('link')
+    const [episodeCard, movieCard] = await within(row).findAllByRole('link')
 
     expect(episodeCard).toHaveAttribute('href', '/watch/20?episode=102')
     expect(within(episodeCard).getByRole('progressbar', { name: 'Переглянуто' })).toHaveAttribute('aria-valuenow', '25')

@@ -1,20 +1,27 @@
-import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth'
 import ContinueWatchingRow from '../components/history/ContinueWatchingRow'
-import { buttonPrimary } from '../components/ui'
+import GuestHero from '../components/home/GuestHero'
+import PopularRow from '../components/home/PopularRow'
+import RecommendedRow from '../components/home/RecommendedRow'
+
+function PersonalRows() {
+  return (
+    <>
+      <h1 className="sr-only">Головна</h1>
+      <ContinueWatchingRow />
+      <RecommendedRow />
+    </>
+  )
+}
 
 export default function HomePage() {
+  const { status } = useAuth()
+
   return (
-    <div className="space-y-10">
-      <ContinueWatchingRow />
-      <section className="rounded-2xl border border-line bg-gradient-to-br from-surface to-screen px-8 py-20 text-center">
-        <h1 className="font-display text-4xl font-semibold">Онлайн-кінотеатр</h1>
-        <p className="mx-auto mt-4 max-w-xl text-muted">
-          Фільми та серіали в різній якості. Шукайте за назвою, жанром, роком і країною.
-        </p>
-        <Link to="/catalog" className={`${buttonPrimary} mt-8`}>
-          Перейти до каталогу
-        </Link>
-      </section>
+    <div className="space-y-12">
+      {status === 'authenticated' && <PersonalRows />}
+      {status === 'guest' && <GuestHero />}
+      <PopularRow />
     </div>
   )
 }
