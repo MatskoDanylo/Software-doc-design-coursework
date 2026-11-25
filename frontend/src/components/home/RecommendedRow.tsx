@@ -5,8 +5,9 @@ import ShelfCard from '../shelf/ShelfCard'
 import ShelfContent from '../shelf/ShelfContent'
 
 function feedNote(strategy: string): string {
-  if (strategy === POPULARITY) return 'Поки що це популярне. Подивіться щось або додайте у Вибране, і добірка стане персональною'
-  return `Алгоритм: ${strategyLabel(strategy)}`
+  const note = `Алгоритм: ${strategyLabel(strategy)}`
+  if (strategy !== POPULARITY) return note
+  return `${note}. Якщо ви ще нічого не дивились, переглядайте й додавайте у Вибране, щоб добірка стала персональною`
 }
 
 export default function RecommendedRow() {

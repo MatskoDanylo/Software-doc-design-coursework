@@ -22,12 +22,12 @@ describe('Home recommendation rows', () => {
     expect(within(popular).queryByText('Популярне цього тижня')).not.toBeInTheDocument()
   })
 
-  it('explains a cold start when the feed falls back to popularity', async () => {
+  it('explains how to get a personal feed when it falls back to popularity', async () => {
     mockApi({ ...signedIn(), '/api/recommendations': popularFeed })
     renderApp('/')
 
     const row = await screen.findByRole('region', { name: 'Рекомендовано для вас' })
-    expect(await within(row).findByText(/Поки що це популярне/)).toBeInTheDocument()
+    expect(await within(row).findByText(/^Алгоритм: Популярне\. Якщо ви ще нічого не дивились/)).toBeInTheDocument()
   })
 
   it('shows only popular titles and a sign-in call to guests', async () => {
