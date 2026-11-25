@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -47,8 +48,34 @@ def add_views(session: Session, title: Title, user_ids: Iterable[int], episode: 
     session.flush()
 
 
-def make_user(session: Session, email: str) -> User:
+def add_history(
+    session: Session,
+    user_id: int,
+    title: Title,
+    *,
+    episode: Episode | None = None,
+    finished: bool = False,
+    progress_sec: int = 60,
+    last_watched: datetime | None = None,
+) -> WatchHistory:
+    entry = WatchHistory(
+        user_id=user_id,
+        title_id=title.id,
+        episode_id=episode.id if episode else None,
+        progress_sec=progress_sec,
+        finished=finished,
+    )
+    if last_watched is not None:
+        entry.last_watched = last_watched
+    session.add(entry)
+    session.flush()
+    return entry
+
+
+def make_user(session: Session, email: str, created_at: datetime | None = None) -> User:
     user = User(email=email, password_hash=hash_password("x"), profile=Profile(display_name=email.split("@")[0]))
+    if created_at is not None:
+        user.created_at = created_at
     session.add(user)
     session.flush()
     return user

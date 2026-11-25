@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -94,3 +95,18 @@ class FavoriteStore(FavoriteReader, Protocol):
     def remove(self, user_id: int, title_id: int) -> None: ...
 
     def page(self, user_id: int, page: int, page_size: int) -> tuple[Sequence[Title], int]: ...
+
+
+@dataclass(frozen=True)
+class StatsTotals:
+    titles: int
+    viewers: int
+    completions: int
+
+
+class CompletionRecorder(Protocol):
+    def record_completion(self, title_id: int, user_id: int) -> bool: ...
+
+
+class TitleStatsStore(CompletionRecorder, Protocol):
+    def rebuild(self) -> StatsTotals: ...

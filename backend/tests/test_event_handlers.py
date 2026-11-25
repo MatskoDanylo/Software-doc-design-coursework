@@ -18,6 +18,7 @@ from app.patterns.plan_factory import default_plan_registry
 from app.services.notification_service import NotificationService, render
 from app.services.subscription_activator import SubscriptionActivator
 from app.services.subscription_service import SubscriptionService
+from app.services.title_stats import TitleStatsUpdater
 
 AMOUNT = Decimal("99.00")
 
@@ -83,7 +84,7 @@ def test_notification_service_stores_message_for_event_owner() -> None:
     assert (item.user_id, item.kind) == (7, NotificationKind.PAYMENT_FAILED)
 
 
-def test_wiring_subscribes_observers_to_payment_events() -> None:
+def test_wiring_subscribes_observers_to_domain_events() -> None:
     bus = create_event_bus(Session(), default_plan_registry(30))
 
     def handler_types(event_type: type) -> list[type]:
@@ -93,7 +94,7 @@ def test_wiring_subscribes_observers_to_payment_events() -> None:
     assert handler_types(PaymentPending) == [NotificationService]
     assert handler_types(PaymentFailed) == [NotificationService]
     assert handler_types(SubscriptionActivated) == [NotificationService]
-    assert handler_types(WatchFinished) == []
+    assert handler_types(WatchFinished) == [TitleStatsUpdater]
 
 
 def test_wired_activator_publishes_back_into_the_same_bus() -> None:
