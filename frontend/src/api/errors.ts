@@ -42,6 +42,11 @@ const MESSAGES: Record<string, string> = {
   invalid_duration: 'Тривалість підписки має бути щонайменше 1 день',
   notification_not_found: 'Сповіщення не знайдено',
   user_not_found: 'Користувача не знайдено',
+  unknown_report: 'Такого звіту не існує',
+  invalid_period: 'Початок періоду не може бути пізніше за кінець',
+  period_too_long: 'Період задовгий. Для понад рік оберіть групування по місяцях',
+  unknown_strategy: 'Невідома стратегія рекомендацій',
+  unknown_timezone: 'Невідомий часовий пояс',
 }
 
 export function errorMessage(error: unknown): string {

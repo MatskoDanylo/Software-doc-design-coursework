@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import AdminLayout from '../components/admin/AdminLayout'
 import Layout from '../components/Layout'
@@ -9,7 +9,6 @@ import AdminTitleCreatePage from '../pages/admin/AdminTitleCreatePage'
 import AdminTitleEditPage from '../pages/admin/AdminTitleEditPage'
 import AdminTitlesPage from '../pages/admin/AdminTitlesPage'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
-import AdminPage from '../pages/AdminPage'
 import CatalogPage from '../pages/CatalogPage'
 import CheckoutPage from '../pages/CheckoutPage'
 import FavoritesPage from '../pages/FavoritesPage'
@@ -26,6 +25,12 @@ import GuestRoute from './GuestRoute'
 import ProtectedRoute from './ProtectedRoute'
 
 const WatchPage = lazy(() => import('../pages/WatchPage'))
+const AdminPage = lazy(() => import('../pages/AdminPage'))
+const AdminReportsPage = lazy(() => import('../pages/admin/AdminReportsPage'))
+
+function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>
+}
 
 export default function AppRoutes() {
   return (
@@ -47,21 +52,36 @@ export default function AppRoutes() {
           <Route
             path="watch/:titleId"
             element={
-              <Suspense fallback={<PageLoader />}>
+              <Lazy>
                 <WatchPage />
-              </Suspense>
+              </Lazy>
             }
           />
         </Route>
         <Route element={<AdminRoute />}>
           <Route path="admin" element={<AdminLayout />}>
-            <Route index element={<AdminPage />} />
+            <Route
+              index
+              element={
+                <Lazy>
+                  <AdminPage />
+                </Lazy>
+              }
+            />
             <Route path="titles" element={<AdminTitlesPage />} />
             <Route path="titles/new" element={<AdminTitleCreatePage />} />
             <Route path="titles/:id" element={<AdminTitleEditPage />} />
             <Route path="genres" element={<AdminGenresPage />} />
             <Route path="payments" element={<AdminPaymentsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route
+              path="reports"
+              element={
+                <Lazy>
+                  <AdminReportsPage />
+                </Lazy>
+              }
+            />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

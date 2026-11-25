@@ -1,5 +1,6 @@
 import type { TokenPair } from '../types/auth'
 import type { ApiErrorBody, ApiErrorDetail } from '../types/errors'
+import type { DownloadedFile } from '../types/report'
 import { tokens } from './tokens'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
@@ -99,7 +100,7 @@ export function refreshSession(): Promise<boolean> {
   return refreshInFlight
 }
 
-export async function apiRequest<T>(path: string, { method = 'GET', body, auth = true }: RequestOptions = {}): Promise<T> {
+async function authorizedResponse(path: string, method: HttpMethod, body: unknown, auth: boolean): Promise<Response> {
   let response = await send(path, method, body, auth ? tokens.getAccess() : null)
 
   if (auth && response.status === 401) {
@@ -112,5 +113,20 @@ export async function apiRequest<T>(path: string, { method = 'GET', body, auth =
     }
   }
 
-  return parse<T>(response)
+  return response
+}
+
+export async function apiRequest<T>(path: string, { method = 'GET', body, auth = true }: RequestOptions = {}): Promise<T> {
+  return parse<T>(await authorizedResponse(path, method, body, auth))
+}
+
+function attachmentName(response: Response): string | null {
+  const header = response.headers.get('Content-Disposition') ?? ''
+  return /filename="?([^";]+)"?/.exec(header)?.[1] ?? null
+}
+
+export async function apiDownload(path: string): Promise<DownloadedFile> {
+  const response = await authorizedResponse(path, 'GET', undefined, true)
+  if (!response.ok) return parse<never>(response)
+  return { blob: await response.blob(), filename: attachmentName(response) }
 }
