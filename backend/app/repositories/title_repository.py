@@ -22,6 +22,12 @@ class TitleRepository(SqlAlchemyRepository[Title]):
             .options(selectinload(Title.seasons).selectinload(Season.episodes))
         )
 
+    def get_many(self, title_ids: Sequence[int]) -> list[Title]:
+        if not title_ids:
+            return []
+        found = {t.id: t for t in self.session.scalars(select(Title).where(Title.id.in_(list(title_ids))))}
+        return [found[i] for i in title_ids if i in found]
+
     def get_by_identity(self, kind: TitleKind, name: str, year: int) -> Title | None:
         return self.session.scalar(
             select(Title).where(Title.kind == kind.value, Title.name == name, Title.year == year)

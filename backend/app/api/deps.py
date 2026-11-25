@@ -18,12 +18,14 @@ from app.models import Role, User
 from app.patterns.payment_gateway import MockGatewayAdapter, MockPaymentProvider
 from app.patterns.plan_factory import PlanPolicyRegistry, default_plan_registry
 from app.patterns.playback_proxy import PlaybackProxy, PlaybackService, RealPlaybackService
+from app.patterns.recommendation import StrategyRegistry, default_strategy_registry
 from app.repositories.favorite_repository import FavoriteRepository
 from app.repositories.genre_repository import GenreRepository
 from app.repositories.history_repository import WatchHistoryRepository
 from app.repositories.notification_repository import NotificationRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.plans import PlanRepository
+from app.repositories.recommendation_repository import RecommendationRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.title_repository import TitleRepository
@@ -39,6 +41,9 @@ from app.services.notification_inbox import NotificationInbox
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
+from app.services.recommendation_service import (
+    RecommendationConfigProvider, RecommendationService, StaticRecommendationConfig,
+)
 from app.services.subscription_service import SubscriptionService
 from app.services.users import UserService
 from app.services.video_service import VideoProcessingService, VideoUploadService
@@ -245,6 +250,32 @@ def get_history_service(session: SessionDep, events: EventBusDep) -> HistoryServ
 
 
 HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
+
+
+@lru_cache
+def get_strategy_registry() -> StrategyRegistry:
+    return default_strategy_registry()
+
+
+StrategyRegistryDep = Annotated[StrategyRegistry, Depends(get_strategy_registry)]
+
+
+def get_recommendation_config() -> RecommendationConfigProvider:
+    return StaticRecommendationConfig()
+
+
+def get_recommendation_service(
+    session: SessionDep,
+    registry: StrategyRegistryDep,
+    config: Annotated[RecommendationConfigProvider, Depends(get_recommendation_config)],
+) -> RecommendationService:
+    source = RecommendationRepository(session)
+    return RecommendationService(
+        registry, source, source, TitleRepository(session), FavoriteRepository(session), config
+    )
+
+
+RecommendationServiceDep = Annotated[RecommendationService, Depends(get_recommendation_service)]
 
 
 def require_admin(user: CurrentUser) -> User:

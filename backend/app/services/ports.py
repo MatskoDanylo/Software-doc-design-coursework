@@ -110,3 +110,19 @@ class CompletionRecorder(Protocol):
 
 class TitleStatsStore(CompletionRecorder, Protocol):
     def rebuild(self) -> StatsTotals: ...
+
+
+@dataclass(frozen=True)
+class UserTaste:
+    watched: frozenset[int]
+    finished: frozenset[int]
+    favorites: frozenset[int]
+    last_watched_title_id: int | None
+
+
+class UserTasteReader(Protocol):
+    def taste(self, user_id: int) -> UserTaste: ...
+
+
+class TitleBatchReader(Protocol):
+    def get_many(self, title_ids: Sequence[int]) -> list[Title]: ...
