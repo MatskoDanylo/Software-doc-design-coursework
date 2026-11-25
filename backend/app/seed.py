@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.demo_activity import DEMO_PASSWORD, EMAIL_TEMPLATE, DemoActivitySummary, seed_demo_activity
 from app.demo_data import DEMO_GENRES, DEMO_TITLES, DemoTitle, episode_name
 from app.models import Episode, Genre, Plan, PlanCode, Role, Season, Title
 from app.repositories.genre_repository import GenreRepository
@@ -86,16 +87,33 @@ def seed_demo_catalog(session: Session) -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.seed", description="Seed reference data.")
     parser.add_argument("--demo", action="store_true", help="also load the demo catalog (genres, movies, series)")
+    parser.add_argument(
+        "--demo-activity",
+        action="store_true",
+        help="recreate demo users with watch history, favorites and payments (implies --demo)",
+    )
     args = parser.parse_args(argv)
+    load_catalog = args.demo or args.demo_activity
 
+    activity: DemoActivitySummary | None = None
     with SessionLocal() as session, session.begin():
         seed(session)
-        if args.demo:
+        if load_catalog:
             seed_demo_catalog(session)
+        if args.demo_activity:
+            activity = seed_demo_activity(session)
 
     print(f"Seed complete: plans {[p['code'].value for p in PLANS]}, admin {settings.admin_email}")
-    if args.demo:
+    if load_catalog:
         print(f"Demo catalog: {len(DEMO_GENRES)} genres, {len(DEMO_TITLES)} titles")
+    if activity is not None:
+        payments = ", ".join(f"{status} {count}" for status, count in sorted(activity.payments.items()))
+        print(
+            f"Demo activity: {activity.users} users, {activity.history} history entries, "
+            f"{activity.favorites} favorites, payments: {payments}, active Premium {activity.active_premium}"
+        )
+        print(f"Demo login: {EMAIL_TEMPLATE.format(1)} ... {EMAIL_TEMPLATE.format(activity.users)}, "
+              f"password {DEMO_PASSWORD}")
 
 
 if __name__ == "__main__":
