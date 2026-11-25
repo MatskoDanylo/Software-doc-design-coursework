@@ -27,6 +27,7 @@ from app.repositories.payment_repository import PaymentRepository
 from app.repositories.plans import PlanRepository
 from app.repositories.recommendation_repository import RecommendationRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
+from app.repositories.settings_repository import SettingsRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.title_repository import TitleRepository
 from app.repositories.users import UserRepository
@@ -41,9 +42,8 @@ from app.services.notification_inbox import NotificationInbox
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
-from app.services.recommendation_service import (
-    RecommendationConfigProvider, RecommendationService, StaticRecommendationConfig,
-)
+from app.services.recommendation_service import RecommendationConfigProvider, RecommendationService
+from app.services.settings_service import SettingsService
 from app.services.subscription_service import SubscriptionService
 from app.services.users import UserService
 from app.services.video_service import VideoProcessingService, VideoUploadService
@@ -260,8 +260,15 @@ def get_strategy_registry() -> StrategyRegistry:
 StrategyRegistryDep = Annotated[StrategyRegistry, Depends(get_strategy_registry)]
 
 
-def get_recommendation_config() -> RecommendationConfigProvider:
-    return StaticRecommendationConfig()
+def get_settings_service(session: SessionDep, registry: StrategyRegistryDep) -> SettingsService:
+    return SettingsService(SettingsRepository(session), registry.codes())
+
+
+SettingsServiceDep = Annotated[SettingsService, Depends(get_settings_service)]
+
+
+def get_recommendation_config(settings: SettingsServiceDep) -> RecommendationConfigProvider:
+    return settings
 
 
 def get_recommendation_service(

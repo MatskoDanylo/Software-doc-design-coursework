@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.models import (
     Episode, Genre, Notification, Payment, PaymentStatus, Plan, Season, Subscription, Title, TitleKind, VideoAsset,
@@ -126,3 +126,17 @@ class UserTasteReader(Protocol):
 
 class TitleBatchReader(Protocol):
     def get_many(self, title_ids: Sequence[int]) -> list[Title]: ...
+
+
+@dataclass(frozen=True)
+class StoredSetting:
+    value: Any
+    updated_at: datetime
+
+
+class SettingsStore(Protocol):
+    def get_all(self) -> dict[str, StoredSetting]: ...
+
+    def upsert_many(self, values: dict[str, Any]) -> None: ...
+
+    def timezone_exists(self, name: str) -> bool: ...

@@ -6,7 +6,6 @@ from typing import Protocol
 from app.core.errors import NotFoundError
 from app.models import User
 from app.patterns.recommendation import (
-    DEFAULT_RECOMMENDATION_CONFIG,
     PopularityStrategy,
     RecommendationConfig,
     RecommendationContext,
@@ -24,14 +23,6 @@ from app.services.subscription_service import utc_now
 
 class RecommendationConfigProvider(Protocol):
     def recommendation_config(self) -> RecommendationConfig: ...
-
-
-class StaticRecommendationConfig:
-    def __init__(self, config: RecommendationConfig = DEFAULT_RECOMMENDATION_CONFIG) -> None:
-        self.config = config
-
-    def recommendation_config(self) -> RecommendationConfig:
-        return self.config
 
 
 class RecommendationService:
