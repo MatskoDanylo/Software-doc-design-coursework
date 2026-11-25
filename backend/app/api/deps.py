@@ -26,6 +26,7 @@ from app.repositories.notification_repository import NotificationRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.plans import PlanRepository
 from app.repositories.recommendation_repository import RecommendationRepository
+from app.repositories.report_repository import ReportRepository
 from app.repositories.season_repository import EpisodeRepository, SeasonRepository
 from app.repositories.settings_repository import SettingsRepository
 from app.repositories.subscription_repository import SubscriptionRepository
@@ -36,6 +37,7 @@ from app.services.admin_catalog_service import AdminCatalogService
 from app.services.auth import AuthService
 from app.services.billing_service import BillingService
 from app.services.catalog_service import CatalogService
+from app.services.dashboard_service import DashboardService
 from app.services.favorite_service import FavoriteService
 from app.services.history_service import HistoryService
 from app.services.notification_inbox import NotificationInbox
@@ -43,6 +45,7 @@ from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
 from app.services.recommendation_service import RecommendationConfigProvider, RecommendationService
+from app.services.reports import ReportService, default_report_generators
 from app.services.settings_service import SettingsService
 from app.services.subscription_service import SubscriptionService
 from app.services.users import UserService
@@ -283,6 +286,20 @@ def get_recommendation_service(
 
 
 RecommendationServiceDep = Annotated[RecommendationService, Depends(get_recommendation_service)]
+
+
+def get_report_service(session: SessionDep, settings: SettingsServiceDep) -> ReportService:
+    return ReportService(default_report_generators(ReportRepository(session)), settings)
+
+
+ReportServiceDep = Annotated[ReportService, Depends(get_report_service)]
+
+
+def get_dashboard_service(session: SessionDep) -> DashboardService:
+    return DashboardService(ReportRepository(session))
+
+
+DashboardServiceDep = Annotated[DashboardService, Depends(get_dashboard_service)]
 
 
 def require_admin(user: CurrentUser) -> User:

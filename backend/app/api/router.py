@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
-    admin, admin_billing, admin_catalog, admin_settings, admin_video, auth, billing, catalog, favorites, history, notifications,
+    admin, admin_billing, admin_catalog, admin_reports, admin_settings, admin_video, auth, billing, catalog, favorites, history, notifications,
     playback, plans, recommendations, subscriptions, users,
 )
 
@@ -22,3 +22,4 @@ api_router.include_router(admin_catalog.router)
 api_router.include_router(admin_video.router)
 api_router.include_router(admin_billing.router)
 api_router.include_router(admin_settings.router)
+api_router.include_router(admin_reports.router)
