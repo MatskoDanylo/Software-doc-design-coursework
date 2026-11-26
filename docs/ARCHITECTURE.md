@@ -2,74 +2,18 @@
 
 ## 1. Актори і Use Cases
 
-```mermaid
-flowchart LR
-    G([Гість])
-    U([Користувач])
-    P([Преміум-користувач])
-    A([Адміністратор])
-    PG([Платіжний шлюз])
+![Діаграма прецедентів](uml/use_cases.png)
 
-    G --> UC1(Переглядати каталог)
-    G --> UC2(Шукати і фільтрувати)
-    G --> UC3(Реєстрація / вхід)
-    U --> UC4(Дивитись відео з рекламою)
-    U --> UC5(Керувати профілем)
-    U --> UC6(Додавати у Вибране)
-    U --> UC7(Бачити рекомендації)
-    U --> UC8(Оформити преміум-підписку)
-    P --> UC9(Дивитись без реклами у вищій якості)
-    UC8 --> PG
-    A --> UC10(CRUD фільмів, серіалів, жанрів)
-    A --> UC11(Завантажити відео, запустити HLS-конвертацію)
-    A --> UC12(Керувати користувачами і підписками)
-    A --> UC13(Переглядати й експортувати звіти, дашборд)
-    A --> UC14(Налаштовувати рекомендації та часовий пояс звітів)
-```
+Джерело: [`uml/use_cases.puml`](uml/use_cases.puml), опис — у [uml/README.md](uml/README.md).
 
-Примітка: Користувач наслідує можливості Гостя, Преміум-користувач — Користувача.
+Примітка: Користувач наслідує можливості Гостя, Преміум-користувач і Адміністратор — Користувача (адміністратор у
+коді — той самий `User` з роллю `admin`).
 
 ## 2. Модель даних (ER)
 
-```mermaid
-erDiagram
-    USER ||--o| PROFILE : has
-    USER ||--o{ SUBSCRIPTION : owns
-    USER ||--o{ PAYMENT : makes
-    USER ||--o{ FAVORITE : saves
-    USER ||--o{ WATCH_HISTORY : watches
-    USER ||--o{ NOTIFICATION : receives
-    PLAN ||--o{ SUBSCRIPTION : defines
-    PLAN ||--o{ PAYMENT : paid_for
-    TITLE ||--o{ FAVORITE : in
-    TITLE }o--o{ GENRE : tagged
-    TITLE ||--o{ SEASON : has
-    SEASON ||--o{ EPISODE : has
-    TITLE ||--o| VIDEO_ASSET : "movie video"
-    EPISODE ||--o| VIDEO_ASSET : "episode video"
-    TITLE ||--o{ WATCH_HISTORY : in
-    EPISODE ||--o{ WATCH_HISTORY : in
-    TITLE ||--o| TITLE_STATS : "агрегат переглядів"
-    TITLE ||--o{ TITLE_VIEWER : "завершили"
-    USER ||--o{ TITLE_VIEWER : "завершив"
+![Фізична модель БД](uml/er.png)
 
-    USER { int id string email string password_hash string role datetime created_at }
-    PROFILE { int user_id string display_name string avatar_url string country }
-    PLAN { int id string code string name decimal price_month bool ads_enabled int max_height }
-    SUBSCRIPTION { int id int user_id int plan_id string status datetime started_at datetime expires_at }
-    PAYMENT { int id int user_id int plan_id decimal amount string status string provider string external_id datetime created_at datetime paid_at }
-    NOTIFICATION { int id int user_id string kind string message bool read datetime created_at }
-    TITLE { int id string kind string name text description int year string country float rating string poster_url }
-    GENRE { int id string name }
-    SEASON { int id int title_id int number }
-    EPISODE { int id int season_id int number string name }
-    VIDEO_ASSET { int id string hls_path string status text error_message int duration_sec int title_id int episode_id }
-    FAVORITE { int user_id int title_id datetime added_at }
-    WATCH_HISTORY { int id int user_id int title_id int episode_id int progress_sec bool finished datetime last_watched }
-    TITLE_STATS { int title_id int unique_viewers int completions datetime last_watched_at }
-    TITLE_VIEWER { int title_id int user_id datetime first_finished_at }
-    APP_SETTING { string key json value datetime updated_at }
-```
+Джерело: [`uml/er.puml`](uml/er.puml), опис — у [uml/README.md](uml/README.md).
 
 Плани створюються сідом (`python -m app.seed`): `free` (реклама, до 720p, 0 грн) і `premium` (без реклами, до 1080p,
 99 грн/міс). Користувач без активної `SUBSCRIPTION` вважається на плані `free`, тому окремий запис підписки для Free
@@ -147,34 +91,9 @@ Router ──> ReportService ──> ReportGenerator.generate() (Template Method
                 └─ експорт: CsvReportExporter (UTF-8 з BOM, роздільник «;»)
 ```
 
-```mermaid
-flowchart LR
-    subgraph catalog [Каталог і перегляд]
-        B[Builder<br/>TitleQueryBuilder]
-        PX[Proxy<br/>PlaybackProxy]
-    end
-    subgraph billing [Підписки й оплата]
-        FM[Factory Method<br/>PlanPolicyCreator]
-        AD[Adapter<br/>MockGatewayAdapter]
-    end
-    H[HistoryService]
-    OB[Observer<br/>EventBus]
-    ST[Strategy<br/>RecommendationStrategy]
-    TM[Template Method<br/>ReportGenerator]
-    CFG[SettingsService<br/>app_settings]
-    DB[(PostgreSQL)]
-    FM -- політика плану --> PX
-    FM -- ціна, тривалість --> AD
-    AD -- PaymentSucceeded --> OB
-    H -- WatchFinished --> OB
-    CFG -- стратегія, ваги, вікно --> ST
-    CFG -- часовий пояс --> TM
-    OB -- grant / notifications --> DB
-    OB -- title_stats --> DB
-    DB -- title_stats, watch_history --> ST
-    DB -- payments, watch_history, users --> TM
-    B -- каталог --> DB
-```
+![Оглядова діаграма класів з GoF-патернами](uml/classes_overview.png)
+
+Джерело: [`uml/classes_overview.puml`](uml/classes_overview.puml), опис — у [uml/README.md](uml/README.md).
 
 Як патерни працюють разом.
 - **Оплата.** Користувач оплачує Premium: `BillingService` бере ціну з політики плану (Factory Method), проводить
@@ -213,50 +132,9 @@ GRASP: Controller (роутери), Information Expert (політика пла�
 **Рішення.** Запит будується покроково: кожен крок додає одну умову і повертає сам білдер (fluent-інтерфейс), а
 `build()` віддає готовий продукт — пару запитів «записи сторінки» і «загальна кількість» з однаковими умовами.
 
-```mermaid
-classDiagram
-    direction LR
-    class CatalogService {
-        <<Director>>
-        +build_query(filters: TitleFilters) TitleQuery
-        +search(filters: TitleFilters) TitlePage
-    }
-    class TitleQueryBuilder {
-        <<Builder>>
-        -conditions: list
-        -order: list
-        -page: int
-        -page_size: int
-        +with_text(text) TitleQueryBuilder
-        +with_genres(genre_ids) TitleQueryBuilder
-        +with_year_range(year_from, year_to) TitleQueryBuilder
-        +with_country(country) TitleQueryBuilder
-        +with_kind(kind) TitleQueryBuilder
-        +with_min_rating(min_rating) TitleQueryBuilder
-        +sort_by(field, order) TitleQueryBuilder
-        +paginate(page, page_size) TitleQueryBuilder
-        +build() TitleQuery
-    }
-    class TitleQuery {
-        <<Product>>
-        +items: Select
-        +count: Select
-        +page: int
-        +page_size: int
-    }
-    class TitleReader {
-        <<interface>>
-        +search(query: TitleQuery) tuple
-    }
-    class TitleRepository {
-        +search(query: TitleQuery) tuple
-    }
-    CatalogService ..> TitleQueryBuilder : керує кроками
-    TitleQueryBuilder ..> TitleQuery : створює
-    CatalogService --> TitleReader
-    TitleRepository ..|> TitleReader
-    TitleRepository ..> TitleQuery : виконує
-```
+![Builder](uml/pattern_builder.png)
+
+Джерело: [`uml/pattern_builder.puml`](uml/pattern_builder.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -326,80 +204,9 @@ items, total = self.titles.search(query)
 що й реальний сервіс, і тримає посилання на нього. Клієнт (роутер) не знає, з ким працює. Проксі спершу перевіряє
 доступ, потім делегує реальному сервісу й обмежує результат політикою плану.
 
-```mermaid
-classDiagram
-    direction LR
-    class PlaybackService {
-        <<interface>>
-        +get_playback(user, title_id, episode_id) Playback
-        +get_master_manifest(user, asset_id) MasterPlaylist
-    }
-    class RealPlaybackService {
-        <<RealSubject>>
-        -targets: PlaybackTargetResolver
-        -assets: VideoAssetStore
-        -manifests: ManifestSource
-        -history: WatchHistoryStore
-        +get_playback(user, title_id, episode_id) Playback
-        +get_master_manifest(user, asset_id) MasterPlaylist
-    }
-    class PlaybackProxy {
-        <<Proxy>>
-        -real: PlaybackService
-        -policies: PlaybackPolicyProvider
-        -ads: AdProvider
-        +get_playback(user, title_id, episode_id) Playback
-        +get_master_manifest(user, asset_id) MasterPlaylist
-        -_policy(user) PlaybackPolicy
-        -_restrict(manifest, policy) MasterPlaylist
-    }
-    class PlaybackPolicyProvider {
-        <<interface>>
-        +policy_for(user) PlaybackPolicy
-    }
-    class SubscriptionService {
-        -plan_policies: PlanPolicyRegistry
-        +policy_for(user) PlaybackPolicy
-        +grant(user_id, plan_code, days) Subscription
-    }
-    class PlanPolicyCreator {
-        <<Creator>>
-        +build_playback_policy(plan) PlaybackPolicy
-    }
-    class AdProvider {
-        <<interface>>
-        +preroll_url() str
-    }
-    class LocalAdProvider
-    class PlaybackPolicy {
-        <<value>>
-        +plan_code: str
-        +max_height: int
-        +ads_enabled: bool
-    }
-    class Playback {
-        <<value>>
-        +asset_id: int
-        +manifest: MasterPlaylist
-        +ads: AdBreak
-        +resume_position_sec: int
-        +plan_code: str
-    }
-    class PlaybackRouter {
-        <<Client>>
-    }
-    RealPlaybackService ..|> PlaybackService
-    PlaybackProxy ..|> PlaybackService
-    PlaybackProxy o-- PlaybackService : real
-    PlaybackProxy --> PlaybackPolicyProvider
-    PlaybackProxy --> AdProvider
-    SubscriptionService ..|> PlaybackPolicyProvider
-    SubscriptionService --> PlanPolicyCreator : через реєстр
-    LocalAdProvider ..|> AdProvider
-    PlaybackPolicyProvider ..> PlaybackPolicy : створює
-    PlaybackService ..> Playback : повертає
-    PlaybackRouter --> PlaybackService
-```
+![Proxy](uml/pattern_proxy.png)
+
+Джерело: [`uml/pattern_proxy.puml`](uml/pattern_proxy.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -410,36 +217,9 @@ classDiagram
 
 **Потік запиту.**
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant P as Плеєр (hls.js)
-    participant R as Router
-    participant X as PlaybackProxy
-    participant S as SubscriptionService
-    participant Real as RealPlaybackService
-    participant M as StaticFiles /media
-    P->>R: GET /api/titles/{id}/playback (Bearer)
-    R->>X: get_playback(user, title_id, episode_id)
-    alt гість
-        X-->>R: 401 Unauthorized
-    else користувач
-        X->>S: policy_for(user)
-        S-->>X: PlaybackPolicy(free, 720, ads)
-        X->>Real: get_playback(user, title_id, episode_id)
-        Real-->>X: Playback(всі рендішни, без реклами, resume)
-        X-->>R: Playback(360/720, preroll_url)
-        R-->>P: {manifest_url, ads, allowed_heights, resume_position_sec}
-    end
-    P->>R: GET /api/playback/{asset_id}/master.m3u8?access_token=…
-    R->>X: get_master_manifest(user, asset_id)
-    X->>Real: get_master_manifest(user, asset_id)
-    Real-->>X: MasterPlaylist(360, 720, 1080)
-    X-->>R: MasterPlaylist(360, 720)
-    R-->>P: application/vnd.apple.mpegurl, no-store
-    P->>M: GET /media/hls/{asset_id}/720p/index.m3u8, seg_NNN.ts
-    M-->>P: файли без перевірки доступу (відоме спрощення, див. розділ 5)
-```
+![Послідовність перегляду](uml/seq_playback.png)
+
+Джерело: [`uml/seq_playback.puml`](uml/seq_playback.puml), опис — у [uml/README.md](uml/README.md).
 
 **Використання.** Збирання графа об'єктів — єдине місце, яке знає про проксі (`api/deps.py`):
 
@@ -523,83 +303,9 @@ GRASP: Protected Variations (правила доступу сховані за �
 тримає підписників за типом події і синхронно викликає їх. Спостерігачі реалізують `EventHandler.handle(event,
 session)`. Хто на що підписаний, вирішує одне місце — `create_event_bus` (composition root).
 
-```mermaid
-classDiagram
-    direction LR
-    class DomainEvent {
-        <<frozen dataclass>>
-    }
-    class PaymentSucceeded {
-        +payment_id: int
-        +user_id: int
-        +plan_code: str
-        +amount: Decimal
-    }
-    class PaymentPending
-    class PaymentFailed
-    class SubscriptionActivated {
-        +user_id: int
-        +subscription_id: int
-        +plan_code: str
-        +expires_at: datetime
-    }
-    class WatchFinished {
-        +user_id: int
-        +title_id: int
-        +episode_id: int
-    }
-    class EventPublisher {
-        <<interface>>
-        +publish(event)
-    }
-    class EventHandler {
-        <<interface>>
-        +handle(event, session)
-    }
-    class EventBus {
-        <<Subject>>
-        -session: Session
-        -handlers: dict
-        +subscribe(event_type, handler)
-        +unsubscribe(event_type, handler)
-        +publish(event)
-    }
-    class SubscriptionActivator {
-        <<ConcreteObserver>>
-        +handle(PaymentSucceeded, session)
-    }
-    class NotificationService {
-        <<ConcreteObserver>>
-        +handle(event, session)
-    }
-    class TitleStatsUpdater {
-        <<ConcreteObserver>>
-        +handle(WatchFinished, session)
-    }
-    class TitleStatsStore {
-        <<interface>>
-        +record_completion(title_id, user_id) bool
-        +rebuild() StatsTotals
-    }
-    class BillingService
-    class SubscriptionService
-    class HistoryService
-    DomainEvent <|-- PaymentSucceeded
-    DomainEvent <|-- PaymentPending
-    DomainEvent <|-- PaymentFailed
-    DomainEvent <|-- SubscriptionActivated
-    DomainEvent <|-- WatchFinished
-    EventBus ..|> EventPublisher
-    EventBus o-- EventHandler : handlers
-    SubscriptionActivator ..|> EventHandler
-    NotificationService ..|> EventHandler
-    TitleStatsUpdater ..|> EventHandler
-    TitleStatsUpdater --> TitleStatsStore : record_completion()
-    BillingService --> EventPublisher : PaymentSucceeded / Pending / Failed
-    SubscriptionService --> EventPublisher : SubscriptionActivated
-    HistoryService --> EventPublisher : WatchFinished
-    SubscriptionActivator --> SubscriptionService : grant()
-```
+![Observer](uml/pattern_observer.png)
+
+Джерело: [`uml/pattern_observer.puml`](uml/pattern_observer.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -691,72 +397,9 @@ def create_event_bus(session: Session, plan_policies: PlanPolicyRegistry) -> Eve
 (`build_playback_policy`, `quote`) працюють із продуктом лише через абстрактний інтерфейс, а який саме продукт
 створити, вирішує підклас у factory method `create_policy`.
 
-```mermaid
-classDiagram
-    direction LR
-    class PlanPolicy {
-        <<Product>>
-        +plan_code: str
-        +name: str
-        +max_height: int
-        +ads_enabled: bool
-        +price: Decimal
-        +duration_days: int
-        +is_purchasable: bool
-        +describe() str
-        +can_upgrade_to(other) bool
-    }
-    class FreePlanPolicy {
-        <<ConcreteProduct>>
-    }
-    class PremiumPlanPolicy {
-        <<ConcreteProduct>>
-        -duration_days: int
-    }
-    class PlanPolicyCreator {
-        <<Creator>>
-        +plan_code: str
-        +create_policy(plan) PlanPolicy*
-        +build_playback_policy(plan) PlaybackPolicy
-        +quote(plan) PlanQuote
-    }
-    class FreePlanCreator {
-        <<ConcreteCreator>>
-        +create_policy(plan) PlanPolicy
-    }
-    class PremiumPlanCreator {
-        <<ConcreteCreator>>
-        -duration_days: int
-        +create_policy(plan) PlanPolicy
-    }
-    class PlanPolicyRegistry {
-        +creator_for(code) PlanPolicyCreator
-    }
-    class PlanQuote {
-        <<value>>
-    }
-    class PlaybackPolicy {
-        <<value>>
-    }
-    class SubscriptionService {
-        <<Client>>
-    }
-    class BillingService {
-        <<Client>>
-    }
-    PlanPolicy <|-- FreePlanPolicy
-    PlanPolicy <|-- PremiumPlanPolicy
-    PlanPolicyCreator <|-- FreePlanCreator
-    PlanPolicyCreator <|-- PremiumPlanCreator
-    FreePlanCreator ..> FreePlanPolicy : створює
-    PremiumPlanCreator ..> PremiumPlanPolicy : створює
-    PlanPolicyCreator ..> PlanPolicy : використовує
-    PlanPolicyCreator ..> PlanQuote
-    PlanPolicyCreator ..> PlaybackPolicy
-    PlanPolicyRegistry o-- PlanPolicyCreator
-    SubscriptionService --> PlanPolicyRegistry
-    BillingService --> PlanPolicyRegistry
-```
+![Factory Method](uml/pattern_factory_method.png)
+
+Джерело: [`uml/pattern_factory_method.puml`](uml/pattern_factory_method.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -825,49 +468,9 @@ ConcreteCreator за кодом, тобто конфігурує клієнта.
 провайдера пишеться об'єктний адаптер, який тримає SDK і перекладає виклики. У проєкті SDK імітує
 `MockPaymentProvider`. Його API навмисно несумісний і нічого не знає про наші моделі.
 
-```mermaid
-classDiagram
-    direction LR
-    class BillingService {
-        <<Client>>
-    }
-    class PaymentGateway {
-        <<Target>>
-        +provider_name: str
-        +create_payment(payment_id, amount: Decimal, currency, description) GatewayPayment
-        +get_status(external_id) PaymentStatus
-    }
-    class PaymentSimulator {
-        <<interface>>
-        +simulate(external_id, outcome) GatewayPayment
-    }
-    class MockGatewayAdapter {
-        <<Adapter>>
-        -provider: MockPaymentProvider
-        +create_payment(...) GatewayPayment
-        +get_status(external_id) PaymentStatus
-        +simulate(external_id, outcome) GatewayPayment
-    }
-    class MockPaymentProvider {
-        <<Adaptee>>
-        +open_invoice(sum_kop: int, ccy: str, memo, merchant_ref) dict
-        +settle(invoice_id, scenario: str) dict
-        +inspect(invoice_id) dict
-    }
-    class GatewayPayment {
-        <<value>>
-        +external_id: str
-        +status: PaymentStatus
-        +amount: Decimal
-        +currency: str
-    }
-    BillingService --> PaymentGateway
-    BillingService --> PaymentSimulator
-    MockGatewayAdapter ..|> PaymentGateway
-    MockGatewayAdapter ..|> PaymentSimulator
-    MockGatewayAdapter o-- MockPaymentProvider : provider
-    PaymentGateway ..> GatewayPayment
-```
+![Adapter](uml/pattern_adapter.png)
+
+Джерело: [`uml/pattern_adapter.puml`](uml/pattern_adapter.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -929,80 +532,9 @@ classDiagram
 перетворює результат на картки `RecommendationRead`. Гібрид — теж стратегія, яка тримає інші стратегії з вагами
 (композиція через той самий інтерфейс).
 
-```mermaid
-classDiagram
-    direction LR
-    class RecommendationService {
-        <<Context>>
-        -registry: StrategyRegistry
-        -config: RecommendationConfigProvider
-        +recommend(user, limit, strategy_code) RecommendationList
-        +similar(title_id, limit, user) list
-        +choose_strategy(context, requested) str
-    }
-    class RecommendationStrategy {
-        <<Strategy>>
-        +code: str
-        +recommend(context, limit) list~ScoredTitle~*
-    }
-    class PopularityStrategy {
-        <<ConcreteStrategy>>
-        -window_days: int
-    }
-    class GenreAffinityStrategy {
-        <<ConcreteStrategy>>
-        +genre_weights(context) GenreWeights
-    }
-    class SimilarTitlesStrategy {
-        <<ConcreteStrategy>>
-        +similarity(seed, other) float
-    }
-    class HybridStrategy {
-        <<ConcreteStrategy>>
-        -components: list
-    }
-    class StrategyRegistry {
-        +register(code, factory)
-        +codes() tuple
-        +create(code, env) RecommendationStrategy
-    }
-    class RecommendationContext {
-        <<value>>
-        +user_id: int
-        +watched: frozenset
-        +finished: frozenset
-        +favorites: frozenset
-        +seed_title_id: int
-    }
-    class RecommendationSource {
-        <<interface>>
-        +popular(since, exclude, limit)
-        +features(title_ids)
-        +candidates(genre_ids, exclude, limit)
-        +similar_candidates(seed, exclude, limit)
-        +genre_names(genre_ids)
-    }
-    class RecommendationRepository
-    class RecommendationConfigProvider {
-        <<interface>>
-        +recommendation_config() RecommendationConfig
-    }
-    class SettingsService
-    RecommendationStrategy <|-- PopularityStrategy
-    RecommendationStrategy <|-- GenreAffinityStrategy
-    RecommendationStrategy <|-- SimilarTitlesStrategy
-    RecommendationStrategy <|-- HybridStrategy
-    HybridStrategy o-- RecommendationStrategy : components
-    RecommendationService --> StrategyRegistry
-    StrategyRegistry ..> RecommendationStrategy : створює
-    RecommendationService ..> RecommendationContext
-    RecommendationService --> RecommendationConfigProvider
-    SettingsService ..|> RecommendationConfigProvider
-    PopularityStrategy --> RecommendationSource
-    GenreAffinityStrategy --> RecommendationSource
-    SimilarTitlesStrategy --> RecommendationSource
-    RecommendationRepository ..|> RecommendationSource
-```
+![Strategy](uml/pattern_strategy.png)
+
+Джерело: [`uml/pattern_strategy.puml`](uml/pattern_strategy.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас | Відповідальність |
 |---|---|---|
@@ -1113,70 +645,9 @@ def generate(self, params: ReportParams) -> Report:
 Тому порядок кроків гарантований і під час виконання, а не лише для статичного аналізатора (тест
 `test_template_method_cannot_be_overridden`).
 
-```mermaid
-classDiagram
-    direction LR
-    class ReportGenerator {
-        <<AbstractClass>>
-        +kind: str
-        +title: str
-        +generate(params) Report «final»
-        +validate(params) Period
-        +build(data, summary, period) Report
-        #collect(period) RowsT*
-        #aggregate(rows, period) DataT*
-        #summarize(data, period) tuple*
-        #sections(data, period) tuple*
-        #default_period(today) tuple «hook»
-        #default_group_by() GroupBy «hook»
-        #extra_validation(period) «hook»
-    }
-    class PopularTitlesReport {
-        <<ConcreteClass>>
-        +TOP_LIMIT = 10
-    }
-    class UserActivityReport {
-        <<ConcreteClass>>
-        +extra_validation(period)
-    }
-    class SubscriptionRevenueReport {
-        <<ConcreteClass>>
-        +default_period(today)
-    }
-    class ReportService {
-        +generate(kind, params) Report
-    }
-    class ReportSettingsProvider {
-        <<interface>>
-        +report_timezone() str
-    }
-    class CsvReportExporter {
-        +export(report) bytes
-        +filename(report) str
-    }
-    class ReportRepository
-    class PopularTitlesSource {
-        <<interface>>
-    }
-    class UserActivitySource {
-        <<interface>>
-    }
-    class RevenueSource {
-        <<interface>>
-    }
-    ReportGenerator <|-- PopularTitlesReport
-    ReportGenerator <|-- UserActivityReport
-    ReportGenerator <|-- SubscriptionRevenueReport
-    ReportService o-- ReportGenerator : за kind
-    ReportService --> ReportSettingsProvider
-    PopularTitlesReport --> PopularTitlesSource
-    UserActivityReport --> UserActivitySource
-    SubscriptionRevenueReport --> RevenueSource
-    ReportRepository ..|> PopularTitlesSource
-    ReportRepository ..|> UserActivitySource
-    ReportRepository ..|> RevenueSource
-    CsvReportExporter ..> ReportGenerator : експортує Report
-```
+![Template Method](uml/pattern_template_method.png)
+
+Джерело: [`uml/pattern_template_method.puml`](uml/pattern_template_method.puml), опис — у [uml/README.md](uml/README.md).
 
 | Роль GoF | Клас / метод | Відповідальність |
 |---|---|---|
@@ -1263,57 +734,9 @@ stateDiagram-v2
 
 **Послідовність успішної оплати.**
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as SPA
-    participant R as Router /api/billing
-    participant B as BillingService
-    participant F as PremiumPlanCreator
-    participant A as MockGatewayAdapter
-    participant M as MockPaymentProvider
-    participant E as EventBus
-    participant SA as SubscriptionActivator
-    participant SS as SubscriptionService
-    participant N as NotificationService
-    participant DB as PostgreSQL
-    participant X as PlaybackProxy
-    U->>R: POST /checkout {plan_code: premium}
-    R->>B: checkout(user, "premium")
-    B->>F: create_policy(plan), quote(plan)
-    F-->>B: PlanQuote(99.00 UAH, 30 днів, purchasable)
-    B->>DB: INSERT payment (created)
-    B->>A: create_payment(id, 99.00, "UAH", "Cinema Premium")
-    A->>M: open_invoice(9900, "980", ...)
-    M-->>A: {"invoice_id": "inv_…", "state": "NEW"}
-    A-->>B: GatewayPayment(created)
-    R-->>U: 201 {payment_id, amount, plan}
-    U->>R: POST /payments/{id}/mock-result {outcome: success}
-    R->>B: submit_mock_result(user, id, success)
-    B->>DB: SELECT … FOR UPDATE (лише власний платіж)
-    B->>A: get_status(invoice_id)
-    A->>M: inspect(invoice_id)
-    M-->>A: {"state": "NEW"}
-    B->>A: simulate(invoice_id, success)
-    A->>M: settle(invoice_id, "approve")
-    M-->>A: {"state": "OK"}
-    A-->>B: PaymentStatus.SUCCESS
-    B->>DB: UPDATE payment (success, paid_at)
-    B->>E: publish(PaymentSucceeded)
-    E->>SA: handle(event, session)
-    SA->>SS: grant(user_id, "premium")
-    SS->>DB: продовжити від max(now, expires_at) на 30 днів або створити підписку
-    SS->>E: publish(SubscriptionActivated)
-    E->>N: handle(event, session)
-    N->>DB: INSERT notification «Підписку Premium активовано до …»
-    R-->>U: 200 {status: success}
-    Note over R,DB: get_db комітить одну транзакцію: платіж, підписка, сповіщення
-    U->>X: GET /api/titles/{id}/playback
-    X->>SS: policy_for(user)
-    SS->>F: build_playback_policy(premium plan)
-    F-->>X: PlaybackPolicy(premium, 1080, без реклами)
-    X-->>U: 360p / 720p / 1080p, ads.enabled = false
-```
+![Послідовність оплати](uml/seq_payment.png)
+
+Джерело: [`uml/seq_payment.puml`](uml/seq_payment.puml), опис — у [uml/README.md](uml/README.md).
 
 **Правила і гарантії.**
 - Ціна платежу береться з `quote()` політики плану, а не з тіла запиту.
