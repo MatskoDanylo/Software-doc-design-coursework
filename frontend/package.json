@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "node scripts/vitest.mjs run",
     "test:watch": "node scripts/vitest.mjs",
-    "test:coverage": "node scripts/vitest.mjs run --coverage"
+    "test:coverage": "node scripts/vitest.mjs run --coverage",
+    "screenshots": "node scripts/screenshots.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.108.2",
@@ -33,6 +34,7 @@
     "@vitest/coverage-v8": "^5.1.1",
     "jsdom": "^29.1.1",
     "oxlint": "^1.90.0",
+    "playwright": "^1.65.1",
     "tailwindcss": "^4.3.5",
     "typescript": "~7.0.2",
     "vite": "^8.3.6",

@@ -52,6 +52,59 @@ python -m uvicorn app.main:app --reload
 | `npm run lint` | перевірка коду oxlint |
 | `npm test` | тести Vitest + Testing Library (одноразовий прогін) |
 | `npm run test:watch` | тести в режимі спостереження |
+| `npm run screenshots` | PNG-знімки інтерфейсу для звіту в `docs/screenshots/` (див. нижче) |
+
+## Скріншоти для звіту
+
+`scripts/screenshots.ts` (Playwright, Chromium) відкриває застосунок як гість, `demo.user05@example.com`
+(Безкоштовний), демо-користувач з Преміумом і адміністратор. Скрипт зберігає 23 PNG у `docs/screenshots/`:
+22 знімки 1440×900 і один мобільний знімок каталогу 375×812, усі з `deviceScaleFactor: 2` (файли вдвічі більші за
+розміром). Перед кожним знімком він чекає завершення запитів, зникнення спінерів і скелетонів та завантаження
+постерів; тости приховано.
+
+Підготовка (один раз):
+
+```bash
+cd frontend
+npm install
+npx playwright install chromium
+```
+
+Дані й сервери (з `backend/`, кожен рядок окремо):
+
+```bash
+.venv/Scripts/python -m app.seed --demo-activity
+.venv/Scripts/python -m app.tools.demo_media
+.venv/Scripts/python -m uvicorn app.main:app
+```
+
+В іншому терміналі `npm run dev`, у третьому — `npm run screenshots`.
+
+- Облікові дані адміністратора беруться з `backend/.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`), без файлу — значення
+  за замовчуванням. Користувач з Преміумом — перший демо-користувач з активною підпискою (або `PREMIUM_EMAIL`).
+  Якщо такого немає, скрипт видає Преміум `demo.user01` на 30 днів через адмін-API.
+- Для знімків оплати щоразу реєструється новий користувач `screens.<час>@example.com` і проводить три платежі
+  (відхилено, очікує, успішно), тому `demo.user05` лишається на безкоштовному плані.
+- Плеєр знімається на найпопулярнішому фільмі з готовим відео; якщо такого немає, скрипт попросить запустити
+  `app.tools.demo_media`.
+- Змінні: `APP_URL`, `API_URL`, `SCREENSHOT_CHANNEL=chrome` (встановлений Chrome замість Chromium),
+  `SCREENSHOT_ONLY=admin,payment` (зберегти лише файли, у назві яких є ці фрагменти; сценарії все одно проходять).
+
+| Файл | Що на знімку |
+|---|---|
+| `01-home-recommendations` | головна з рядком «Рекомендовано для вас» |
+| `02-catalog-filters` | каталог: жанр «Драма», роки від 1990, сортування за рейтингом |
+| `03-title-similar` | сторінка фільму з блоком «Схожі» |
+| `04-player-free-ad` | плеєр безкоштовного плану з рекламою |
+| `05-player-premium-quality` | плеєр Преміуму з вибором якості |
+| `06-favorites` | «Вибране» |
+| `07-profile-subscription` | профіль з блоком підписки |
+| `08-pricing` | тарифи |
+| `09-checkout-outcome` | сторінка оплати з вибором результату |
+| `10-payment-failed`, `11-payment-pending`, `12-payment-success` | три результати оплати |
+| `13-notifications` | панель сповіщень після трьох платежів |
+| `14-admin-dashboard` … `22-admin-settings` | адмінка: огляд, тайтли, форма редагування, завантаження відео, платежі, три звіти, налаштування |
+| `23-mobile-catalog-375` | каталог на ширині 375 px |
 
 ## Структура `src/`
 
