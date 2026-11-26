@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { ApiError } from './api/client'
 import AuthProvider from './auth/AuthProvider'
 import AppRoutes from './routes/AppRoutes'
+import { createMutationCache } from './toast/mutationToasts'
+import Toaster from './toast/Toaster'
 
 const MAX_RETRIES = 1
 
@@ -13,6 +15,7 @@ function shouldRetry(failureCount: number, error: Error): boolean {
 
 function createQueryClient() {
   return new QueryClient({
+    mutationCache: createMutationCache(),
     defaultOptions: {
       queries: { retry: shouldRetry, refetchOnWindowFocus: false },
     },
@@ -26,6 +29,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppRoutes />
+        <Toaster />
       </AuthProvider>
     </QueryClientProvider>
   )
