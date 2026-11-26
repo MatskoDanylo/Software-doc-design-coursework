@@ -1,0 +1,98 @@
+@startuml seq_payment
+!include _style.iuml
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+skinparam sequenceGroupBodyBackgroundColor #FFFFFF
+autonumber "<b>0."
+
+title Оплата Premium: від checkout до активації підписки (mock-шлюз)
+
+actor "Користувач" as U
+participant "React SPA\nPaymentPage" as SPA
+participant "routes.billing" as R
+participant "BillingService" as BS
+participant "PlanPolicyRegistry /\nPlanPolicyCreator" as FM $FACTORY
+participant "PaymentRepository" as PR
+participant "MockGatewayAdapter" as AD $ADAPTER
+participant "MockPaymentProvider" as MP $ADAPTER
+participant "EventBus" as EB $OBSERVER
+participant "SubscriptionActivator" as SA $OBSERVER
+participant "SubscriptionService" as SS
+participant "NotificationService" as NS $OBSERVER
+database "PostgreSQL" as DB
+
+== 1. Checkout ==
+U -> SPA : «Оформити Premium»
+SPA -> R : POST /api/billing/checkout {plan_code: "premium"}
+note right of R : get_db: session.begin()\n— одна транзакція на запит
+R -> BS : checkout(user, "premium")
+BS -> FM : creator_for("premium").create_policy(plan)
+FM --> BS : PremiumPlanPolicy (price 99.00, 30 днів)
+BS -> SS : current_plan(user)
+SS --> BS : Plan free
+BS -> FM : FreePlanPolicy.can_upgrade_to(premium)
+FM --> BS : True
+BS -> FM : quote(plan)
+FM --> BS : PlanQuote
+BS -> PR : add(Payment status=CREATED)
+PR -> DB : INSERT payments
+BS -> AD : create_payment(payment_id, 99.00, "UAH", "Cinema Premium")
+AD -> MP : open_invoice(sum_kop=9900, ccy="980", memo, "payment-{id}")
+MP --> AD : {invoice_id, state: "NEW", ...}
+AD --> BS : GatewayPayment(external_id, CREATED, 99.00, "UAH")
+BS -> PR : save(payment.external_id = invoice_id)
+R --> SPA : 201 CheckoutRead {payment, quote}
+note right of R : COMMIT
+
+== 2. Вибір результату оплати ==
+U -> SPA : обирає success / pending / failed
+SPA -> R : POST /api/billing/payments/{id}/mock-result {outcome}
+R -> BS : submit_mock_result(user, payment_id, outcome)
+BS -> PR : get_for_user_for_update(payment_id, user_id)
+PR -> DB : SELECT ... FOR UPDATE
+BS -> AD : get_status(external_id)
+AD -> MP : inspect(invoice_id)
+MP --> AD : state "NEW"
+AD --> BS : PaymentStatus.CREATED (не фінальний)
+BS -> AD : simulate(external_id, outcome)
+AD -> MP : settle(invoice_id, "approve" | "hold" | "decline")
+
+alt outcome = success
+  MP --> AD : state "OK"
+  AD --> BS : GatewayPayment(status=SUCCESS)
+  BS -> PR : save(status=SUCCESS, paid_at=now)
+  BS -> EB : publish(PaymentSucceeded)
+  EB -> SA : handle(event, session)
+  SA -> SS : grant(user_id, "premium")
+  SS -> FM : create_policy(plan).duration_days
+  FM --> SS : 30
+  SS -> DB : INSERT subscriptions (ACTIVE, expires_at = now + 30 днів)\nабо продовжити активну
+  SS -> EB : publish(SubscriptionActivated)
+  EB -> NS : handle(event, session)
+  NS -> DB : INSERT notifications (subscription_activated)
+  R --> SPA : 200 PaymentRead {status: "success"}
+  note over SPA : refreshPlan(): GET /users/me (план Premium)\nі скидання кешу відтворення
+else outcome = pending
+  MP --> AD : state "WAIT"
+  AD --> BS : GatewayPayment(status=PENDING)
+  BS -> PR : save(status=PENDING)
+  BS -> EB : publish(PaymentPending)
+  EB -> NS : handle(event, session)
+  NS -> DB : INSERT notifications (payment_pending)
+  R --> SPA : 200 PaymentRead {status: "pending"}
+  note over R, BS : Пізніше адміністратор: POST /api/admin/payments/{id}/resolve\n→ BillingService.resolve(success | failed) → той самий _settle()\nі ті самі гілки success / failed
+else outcome = failed
+  MP --> AD : state "DECLINED"
+  AD --> BS : GatewayPayment(status=FAILED)
+  BS -> PR : save(status=FAILED)
+  BS -> EB : publish(PaymentFailed)
+  EB -> NS : handle(event, session)
+  NS -> DB : INSERT notifications (payment_failed)
+  R --> SPA : 200 PaymentRead {status: "failed"}
+end
+note right of R : COMMIT усього разом; виняток у будь-якому\nобробнику → ROLLBACK (оплата без підписки неможлива)
+
+== Наступний запит відтворення ==
+SPA -> R : GET /api/titles/{id}/playback
+note right of R : PlaybackProxy → SubscriptionService.policy_for(user)\n→ PremiumPlanCreator.build_playback_policy() → без реклами, 1080p\n(див. seq_playback)
+@enduml

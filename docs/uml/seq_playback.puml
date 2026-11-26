@@ -1,0 +1,99 @@
+@startuml seq_playback
+!include _style.iuml
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+skinparam sequenceGroupBodyBackgroundColor #FFFFFF
+autonumber "<b>0."
+
+title Перегляд: від кліку «Дивитись» до сегментів HLS
+
+actor "Глядач" as U
+participant "React SPA\nWatchPage /\nPlaybackStage" as SPA
+participant "hls.js\n(useHlsStream)" as HLS
+participant "routes.playback" as R
+participant "PlaybackProxy" as PX $PROXY
+participant "SubscriptionService" as SS
+participant "PlanPolicyCreator" as FM $FACTORY
+participant "RealPlaybackService" as RS $PROXY
+participant "Репозиторії\nTitle / Episode /\nVideoAsset / WatchHistory" as REPO
+participant "LocalManifestSource /\nLocalAdProvider" as FS
+participant "StaticFiles /media" as ST
+database "media/hls/{asset_id}/" as MEDIA
+
+== 1. Метадані відтворення ==
+U -> SPA : клік «Дивитись»
+SPA -> R : GET /api/titles/{title_id}/playback[?episode_id]\nAuthorization: Bearer access_token
+R -> PX : get_playback(user, title_id, episode_id)
+alt гість без токена
+  PX --> R : UnauthorizedError
+  R --> SPA : 401 «Sign in to watch videos»
+else користувач увійшов
+  PX -> SS : policy_for(user)
+  SS -> REPO : SubscriptionRepository.get_active(user_id, now)
+  REPO --> SS : активна підписка або None → план free
+  SS -> FM : creator_for(plan.code).build_playback_policy(plan)
+  FM --> SS : PlaybackPolicy(plan_code, max_height, ads_enabled)
+  SS --> PX : Free: 720p, реклама / Premium: 1080p, без реклами
+  PX -> RS : get_playback(user, title_id, episode_id)
+  RS -> REPO : PlaybackTargetResolver.resolve(title_id, episode_id)
+  RS -> REPO : VideoAssetRepository.get_by_title / get_by_episode
+  alt відео ще не готове (pending / processing / failed)
+    RS --> PX : NotFoundError video_not_ready
+    PX --> R : 404
+  else status = ready
+    RS -> REPO : WatchHistoryRepository.get_entry(user, title, episode)
+    REPO --> RS : progress_sec (позиція відновлення)
+    RS -> FS : LocalManifestSource.read("hls/{id}/master.m3u8")
+    FS -> MEDIA : читає файл
+    RS --> PX : Playback(manifest 360/720/1080p, ads=NO_ADS, resume)
+    opt policy.ads_enabled (Free)
+      PX -> FS : LocalAdProvider.preroll_url()
+      FS --> PX : "/media/ads/preroll/master.m3u8" або None
+    end
+    PX -> PX : _restrict(manifest, policy)\nMasterPlaylist.limited_to(max_height)
+    PX --> R : Playback(manifest ≤ max_height, ads, plan_code)
+    R --> SPA : 200 PlaybackRead {plan, manifest_url:\n"/api/playback/{asset_id}/master.m3u8",\nads, allowed_heights, resume_position_sec}
+  end
+end
+
+== 2. Реклама перед відео (лише Free) ==
+opt ads.enabled і є preroll_url
+  SPA -> HLS : PrerollAd: useHlsStream(preroll_url)
+  HLS -> ST : GET /media/ads/preroll/master.m3u8, сегменти .ts
+  ST --> HLS : HLS-ролик
+  U -> SPA : перегляд або «Пропустити» через 5 с
+  SPA -> SPA : onDone() → показати VideoPlayer
+end
+
+== 3. Основне відео ==
+SPA -> HLS : VideoPlayer: useHlsStream(manifest_url,\n{authorize: true, startPosition: resume})
+HLS -> R : GET /api/playback/{asset_id}/master.m3u8\n(xhrSetup додає Authorization)
+R -> PX : get_master_manifest(user, asset_id)
+PX -> SS : policy_for(user)
+PX -> RS : get_master_manifest(user, asset_id)
+RS --> PX : MasterPlaylist (усі якості)
+PX -> PX : limited_to(max_height)
+PX --> R : MasterPlaylist
+R --> HLS : 200 application/vnd.apple.mpegurl\nCache-Control: no-store\n(лише дозволені варіанти, URI /media/hls/{id}/720p/index.m3u8)
+HLS -> SPA : MANIFEST_PARSED → список якостей у меню
+loop адаптивний бітрейт (ABR) або ручний вибір якості
+  HLS -> ST : GET /media/hls/{id}/720p/index.m3u8
+  ST -> MEDIA : файл
+  ST --> HLS : медіаплейлист
+  HLS -> ST : GET /media/hls/{id}/720p/seg_000.ts, seg_001.ts ...
+  ST --> HLS : сегменти по 6 с (H.264 + AAC)
+  HLS -> SPA : Media Source Extensions → <video>
+end
+
+== 4. Прогрес перегляду ==
+loop кожні 10 с, на паузі і в кінці
+  SPA -> R : PUT /api/history/progress {title_id, episode_id, progress_sec, finished}
+  note right of R : HistoryService.record_progress(); при переході\nfinished=false → true публікує WatchFinished\n→ TitleStatsUpdater оновлює title_stats (Observer)
+end
+
+note over SPA, HLS
+  Safari без MSE відтворює HLS нативно: тоді
+  токен передається параметром ?access_token=
+  (get_stream_user у api/deps.py).
+end note
+@enduml

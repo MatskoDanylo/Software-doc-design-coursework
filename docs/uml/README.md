@@ -148,3 +148,48 @@ ER-діаграма.
 summarize → build`. Кожен звіт реалізує абстрактні кроки, а через гачки змінює поведінку за замовчуванням:
 `UserActivityReport` обмежує денне групування (`extra_validation`), `SubscriptionRevenueReport` бере 90 днів
 замість 30 (`default_period`).
+
+## Інші діаграми
+
+### ER-діаграма (фізична модель БД) — `er.png`
+
+![ER](er.png)
+
+Сімнадцять таблиць PostgreSQL зі стовпцями, типами, `NOT NULL` (зірочка), первинними й зовнішніми ключами,
+унікальними обмеженнями та індексами. Діаграма зведена з моделей SQLAlchemy і перевірена за міграціями Alembic.
+Варто звернути увагу на складені ключі (`favorites`, `title_genres`, `title_viewers`), на CHECK
+`single_owner` у `video_assets` (відео належить або фільму, або епізоду) і на унікальність прогресу
+`watch_history` з `NULLS NOT DISTINCT` (один запис на фільм, де `episode_id IS NULL`). Усі FK видаляються
+каскадно, крім посилань на `plans`.
+
+### Послідовність: оплата — `seq_payment.png`
+
+![Оплата](seq_payment.png)
+
+Два HTTP-запити: checkout створює платіж і рахунок у провайдері, а вибір результату на сторінці оплати
+проводить його. Гілки `alt` показують success, pending і failed. Кольори учасників збігаються з кольорами
+патернів, тож видно ланцюжок Factory Method (ціна, дозвіл на перехід, тривалість) → Adapter (копійки, `"980"`,
+стани провайдера) → Observer (`PaymentSucceeded` → `SubscriptionActivator` → `SubscriptionService.grant` →
+`SubscriptionActivated` → `NotificationService`). Усе відбувається в одній транзакції запиту: якщо обробник
+падає, відкочуються і платіж, і підписка.
+
+### Послідовність: перегляд — `seq_playback.png`
+
+![Перегляд](seq_playback.png)
+
+Від кліку «Дивитись» до сегментів HLS. Спочатку `GET /titles/{id}/playback` проходить через `PlaybackProxy`:
+перевіряється вхід, будується політика плану (Factory Method), реальний сервіс шукає готове відео й позицію
+відновлення, проксі обрізає якості й для Free додає pre-roll. Далі hls.js із JWT запитує `master.m3u8` знову
+через проксі, а медіаплейлисти й `.ts`-сегменти бере як статику `/media`. Наприкінці плеєр кожні 10 с
+надсилає прогрес, а завершений перегляд запускає Observer → статистику для рекомендацій.
+
+### Компоненти і розгортання — `components.png`
+
+![Компоненти](components.png)
+
+Браузер із React SPA (React Router, TanStack Query, hls.js, Recharts) звертається до Vite dev server, який
+проксіює `/api` і `/media` на FastAPI. У Docker Compose працюють контейнер `backend` (uvicorn і ffmpeg, бо
+транскодування запускається як `subprocess` з фонової задачі) і контейнер `db` з PostgreSQL 16 на томі
+`pgdata`. Тека `./media` змонтована в бекенд: туди пишуться завантаження, HLS-рендиції та постери, а
+`StaticFiles` їх роздає. Підписи на зв'язках — протоколи: JSON REST з Bearer JWT, HLS поверх HTTP, SQL
+по TCP 5432, файловий ввід-вивід.
