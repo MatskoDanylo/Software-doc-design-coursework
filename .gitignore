@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+node_modules/
+dist/
+media/*
+!media/.gitkeep
+.pytest_cache/
+coverage/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

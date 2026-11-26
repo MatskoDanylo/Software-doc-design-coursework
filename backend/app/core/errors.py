@@ -1,0 +1,55 @@
+from collections.abc import Mapping
+from typing import ClassVar
+
+
+class AppError(Exception):
+    status_code: int = 400
+    code: str = "bad_request"
+    headers: ClassVar[Mapping[str, str] | None] = None
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        if code is not None:
+            self.code = code
+
+
+class UnauthorizedError(AppError):
+    status_code = 401
+    code = "unauthorized"
+    headers: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
+
+
+class ForbiddenError(AppError):
+    status_code = 403
+    code = "forbidden"
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+
+
+class ConflictError(AppError):
+    status_code = 409
+    code = "conflict"
+
+
+class UnprocessableError(AppError):
+    status_code = 422
+    code = "unprocessable"
+
+
+class PayloadTooLargeError(AppError):
+    status_code = 413
+    code = "payload_too_large"
+
+
+class UnsupportedMediaTypeError(AppError):
+    status_code = 415
+    code = "unsupported_media_type"
+
+
+class BadGatewayError(AppError):
+    status_code = 502
+    code = "bad_gateway"

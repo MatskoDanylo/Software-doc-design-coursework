@@ -1,0 +1,302 @@
+@startuml classes_overview
+!include _style.iuml
+hide empty members
+set separator none
+skinparam nodesep 30
+skinparam ranksep 45
+skinparam packageStyle frame
+
+title Оглядова діаграма класів: GoF-патерни і сервіси Cinema Platform
+
+legend top right
+  <b>GoF-патерни (фон класу)</b>
+  |<back:#C8A27A>      </back>| Factory Method |
+  |<back:#FFF27A>      </back>| Template Method |
+  |<back:#8EE08E>      </back>| Observer |
+  |<back:#FFB347>      </back>| Builder |
+  |<back:#8FD3FF>      </back>| Strategy |
+  |<back:#C9A7FF>      </back>| Proxy |
+  |<back:#FF9B9B>      </back>| Adapter |
+  |<back:#FFFFFF>      </back>| сервіс-клієнт патернів |
+  Інтерфейси в коді — typing.Protocol
+  (реалізуються структурно, показано ..|>)
+endlegend
+
+' ======================= Proxy =======================
+package "Proxy — patterns/playback_proxy.py" {
+  abstract class PlaybackService <<Subject>> $PROXY {
+    +{abstract} get_playback(user, title_id, episode_id): Playback
+    +{abstract} get_master_manifest(user, asset_id): MasterPlaylist
+  }
+  class RealPlaybackService <<RealSubject>> $PROXY {
+    -_require_ready(asset): VideoAsset
+    -_resume_position(user, title_id, episode_id): int
+  }
+  class PlaybackProxy <<Proxy>> $PROXY {
+    -_policy(user): PlaybackPolicy
+    -_restrict(manifest, policy): MasterPlaylist
+  }
+  interface PlaybackPolicyProvider {
+    +policy_for(user): PlaybackPolicy
+  }
+  class PlaybackPolicy <<dataclass>> {
+    plan_code: str
+    max_height: int
+    ads_enabled: bool
+  }
+}
+
+' ======================= Factory Method =======================
+package "Factory Method — patterns/plan_factory.py" {
+  abstract class PlanPolicyCreator <<Creator>> $FACTORY {
+    +{abstract} create_policy(plan): PlanPolicy
+    +build_playback_policy(plan): PlaybackPolicy
+    +quote(plan): PlanQuote
+  }
+  class FreePlanCreator <<ConcreteCreator>> $FACTORY
+  class PremiumPlanCreator <<ConcreteCreator>> $FACTORY {
+    duration_days: int
+  }
+  abstract class PlanPolicy <<Product>> $FACTORY {
+    +{abstract} ads_enabled: bool
+    +{abstract} price: Decimal
+    +{abstract} duration_days: int | None
+    +is_purchasable: bool
+    +{abstract} describe(): str
+    +{abstract} can_upgrade_to(other): bool
+  }
+  class FreePlanPolicy <<ConcreteProduct>> $FACTORY
+  class PremiumPlanPolicy <<ConcreteProduct>> $FACTORY
+  class PlanPolicyRegistry <<Registry>> $FACTORY {
+    +creator_for(code): PlanPolicyCreator
+  }
+}
+
+' ======================= Builder =======================
+package "Builder — patterns/title_query_builder.py" {
+  class CatalogService <<Director>> $BUILDER {
+    +build_query(filters): TitleQuery
+    +search(filters, viewer_id): TitlePage
+  }
+  class TitleQueryBuilder <<Builder>> $BUILDER {
+    +with_text(text): Self
+    +with_genres(genre_ids): Self
+    +with_year_range(year_from, year_to): Self
+    +with_country(country): Self
+    +with_kind(kind): Self
+    +with_min_rating(min_rating): Self
+    +sort_by(field, order): Self
+    +paginate(page, page_size): Self
+    +build(): TitleQuery
+  }
+  class TitleQuery <<Product>> $BUILDER {
+    items: Select
+    count: Select
+    page: int
+    page_size: int
+  }
+}
+
+' ======================= Сервіси =======================
+package "Сервіси — services/" {
+  class BillingService {
+    +list_plans(): list[PlanQuote]
+    +checkout(user, plan_code): Checkout
+    +submit_mock_result(user, payment_id, outcome): Payment
+    +resolve(payment_id, outcome): Payment
+    -_apply(payment, status): Payment
+  }
+  class SubscriptionService {
+    +current_plan(user): Plan
+    +policy_for(user): PlaybackPolicy
+    +grant(user_id, plan_code, days): Subscription
+    +cancel(user): SubscriptionInfo
+  }
+  class HistoryService {
+    +record_progress(user, data): ProgressResult
+    +continue_watching(user, limit)
+  }
+  class SettingsService {
+    +recommendation_config(): RecommendationConfig
+    +report_timezone(): str
+  }
+}
+
+' ======================= Adapter =======================
+package "Adapter — patterns/payment_gateway.py" {
+  interface PaymentGateway <<Target>> $ADAPTER {
+    provider_name: str
+    +create_payment(payment_id, amount, currency, description): GatewayPayment
+    +get_status(external_id): PaymentStatus
+  }
+  interface PaymentSimulator <<Target>> $ADAPTER {
+    +simulate(external_id, outcome): GatewayPayment
+  }
+  class MockGatewayAdapter <<Adapter>> $ADAPTER {
+    -_to_payment(invoice): GatewayPayment
+    -_status(state): PaymentStatus
+  }
+  class MockPaymentProvider <<Adaptee>> $ADAPTER {
+    +open_invoice(sum_kop, ccy, memo, merchant_ref): dict
+    +settle(invoice_id, scenario): dict
+    +inspect(invoice_id): dict
+  }
+}
+
+' ======================= Observer =======================
+package "Observer — core/events.py, event_wiring.py" {
+  interface EventPublisher {
+    +publish(event)
+  }
+  class EventBus <<Subject>> $OBSERVER {
+    +subscribe(event_type, handler)
+    +unsubscribe(event_type, handler)
+    +publish(event)
+  }
+  interface EventHandler <<Observer>> $OBSERVER {
+    +handle(event, session)
+  }
+  class SubscriptionActivator <<ConcreteObserver>> $OBSERVER
+  class NotificationService <<ConcreteObserver>> $OBSERVER
+  class TitleStatsUpdater <<ConcreteObserver>> $OBSERVER
+  class DomainEvent <<Event>>
+  class PaymentSucceeded
+  class PaymentPending
+  class PaymentFailed
+  class SubscriptionActivated
+  class WatchFinished
+  class event_wiring <<module>> {
+    +create_event_bus(session, plan_policies): EventBus
+  }
+}
+
+' ======================= Strategy =======================
+package "Strategy — patterns/recommendation.py" {
+  class RecommendationService <<Context>> $STRATEGY {
+    +recommend(user, limit, strategy_code)
+    +similar(title_id, limit, user)
+    +choose_strategy(context, requested): str
+  }
+  abstract class RecommendationStrategy <<Strategy>> $STRATEGY {
+    code: str
+    +{abstract} recommend(context, limit): list[ScoredTitle]
+  }
+  class PopularityStrategy <<ConcreteStrategy>> $STRATEGY
+  class GenreAffinityStrategy <<ConcreteStrategy>> $STRATEGY
+  class SimilarTitlesStrategy <<ConcreteStrategy>> $STRATEGY
+  class HybridStrategy <<ConcreteStrategy>> $STRATEGY
+  class StrategyRegistry $STRATEGY {
+    +register(code, factory)
+    +codes(): tuple[str, ...]
+    +create(code, env): RecommendationStrategy
+  }
+  interface RecommendationSource {
+    +popular(since, exclude, limit)
+    +features(title_ids)
+    +candidates(genre_ids, exclude, limit)
+  }
+}
+
+' ======================= Template Method =======================
+package "Template Method — services/reports.py" {
+  class ReportService {
+    +kinds(): tuple[str, ...]
+    +generate(kind, params): Report
+  }
+  abstract class ReportGenerator <<AbstractClass>> $TEMPLATE {
+    +generate(params): Report {final}
+    #validate(params): Period
+    #{abstract} collect(period)
+    #{abstract} aggregate(rows, period)
+    #{abstract} summarize(data, period)
+    #{abstract} sections(data, period)
+    #build(data, summary, period): Report
+    #default_period(today)
+    #extra_validation(period)
+  }
+  class PopularTitlesReport <<ConcreteClass>> $TEMPLATE
+  class UserActivityReport <<ConcreteClass>> $TEMPLATE
+  class SubscriptionRevenueReport <<ConcreteClass>> $TEMPLATE
+  interface ReportsSource {
+    +today(timezone): date
+    +title_activity(period)
+    +revenue_by_bucket(period)
+  }
+}
+
+' ---------------- верхній ряд: Proxy, Factory Method (над сервісами)
+RealPlaybackService -up-|> PlaybackService
+PlaybackProxy -up-|> PlaybackService
+PlaybackProxy o-up-> "real" PlaybackService
+PlaybackProxy --> "1 policies" PlaybackPolicyProvider
+PlaybackProxy ..> PlaybackPolicy
+PlaybackPolicyProvider <|.. SubscriptionService
+
+FreePlanCreator -up-|> PlanPolicyCreator
+PremiumPlanCreator -up-|> PlanPolicyCreator
+FreePlanPolicy -up-|> PlanPolicy
+PremiumPlanPolicy -up-|> PlanPolicy
+FreePlanCreator ..> FreePlanPolicy : <<create>>
+PremiumPlanCreator ..> PremiumPlanPolicy : <<create>>
+PlanPolicyCreator ..> PlaybackPolicy : <<create>>
+PlanPolicyRegistry o--> "*" PlanPolicyCreator
+PlanPolicyRegistry <-- SubscriptionService
+PlanPolicyRegistry <-- BillingService
+
+CatalogService ..> TitleQueryBuilder : <<create>>
+TitleQueryBuilder ..> TitleQuery : build()
+
+' ---------------- нижній ряд: Adapter, Observer
+MockGatewayAdapter .up.|> PaymentGateway
+MockGatewayAdapter .up.|> PaymentSimulator
+MockGatewayAdapter o--> "1 provider" MockPaymentProvider
+BillingService --> "gateway" PaymentGateway
+BillingService --> "simulator" PaymentSimulator
+BillingService --> "current_plans" SubscriptionService
+
+BillingService --> EventPublisher : PaymentSucceeded,\nPaymentPending, PaymentFailed
+HistoryService --> EventPublisher : WatchFinished
+SubscriptionService --> EventPublisher : SubscriptionActivated
+EventBus .up.|> EventPublisher
+EventBus o--> "*" EventHandler
+SubscriptionActivator .up.|> EventHandler
+NotificationService .up.|> EventHandler
+TitleStatsUpdater .up.|> EventHandler
+EventBus ..> DomainEvent : publish()
+PaymentSucceeded -up-|> DomainEvent
+PaymentPending -up-|> DomainEvent
+PaymentFailed -up-|> DomainEvent
+SubscriptionActivated -up-|> DomainEvent
+WatchFinished -up-|> DomainEvent
+event_wiring .up.> EventBus : subscribe()
+SubscriptionActivator .up.> SubscriptionService : grant()
+
+' ---------------- найнижчий ряд: Strategy, Template Method
+SettingsService <-- RecommendationService : RecommendationConfigProvider
+SettingsService <-- ReportService : ReportSettingsProvider
+RecommendationService --> StrategyRegistry
+RecommendationService ..> RecommendationStrategy : recommend()
+StrategyRegistry ..> RecommendationStrategy : <<create>>
+PopularityStrategy -up-|> RecommendationStrategy
+GenreAffinityStrategy -up-|> RecommendationStrategy
+SimilarTitlesStrategy -up-|> RecommendationStrategy
+HybridStrategy -up-|> RecommendationStrategy
+HybridStrategy o-up-> "*" RecommendationStrategy : components
+PopularityStrategy --> RecommendationSource
+GenreAffinityStrategy --> RecommendationSource
+SimilarTitlesStrategy --> RecommendationSource
+
+ReportService o--> "*" ReportGenerator
+PopularTitlesReport -up-|> ReportGenerator
+UserActivityReport -up-|> ReportGenerator
+SubscriptionRevenueReport -up-|> ReportGenerator
+PopularTitlesReport --> ReportsSource
+UserActivityReport --> ReportsSource
+SubscriptionRevenueReport --> ReportsSource
+
+' розкладка рядів
+HistoryService -[hidden]down- EventPublisher
+DomainEvent -[hidden]down- RecommendationService
+MockPaymentProvider -[hidden]down- ReportService
+PlanPolicyRegistry -[hidden]down- CatalogService
+@enduml

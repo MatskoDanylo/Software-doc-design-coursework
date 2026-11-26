@@ -1,0 +1,97 @@
+@startuml components
+!include _style.iuml
+skinparam componentStyle uml2
+skinparam nodesep 50
+skinparam ranksep 60
+skinparam NodeBackgroundColor #FAFAFA
+skinparam ComponentBackgroundColor #FFFFFF
+skinparam DatabaseBackgroundColor #E8EEF7
+skinparam FolderBackgroundColor #FFF8E1
+
+title Компоненти і розгортання Cinema Platform
+
+node "Браузер користувача / адміністратора" as Browser {
+  component "React SPA\n(React + TypeScript)" as SPA {
+    component "React Router\nсторінки каталогу, перегляду,\nпрофілю, оплати, /admin" as Pages
+    component "TanStack Query\nкеш і запити до API" as Query
+    component "hls.js\nMedia Source Extensions" as Hls
+    component "Recharts\nграфіки дашборду і звітів" as Charts
+  }
+  component "<video>" as Video
+}
+
+node "Vite dev server :5173\n(npm run dev; у продакшні — статичний dist/)" as Vite {
+  component "proxy /api, /media → :8000" as Proxy
+}
+
+node "Docker Compose" as Compose {
+  node "контейнер backend\npython:3.12-slim + ffmpeg :8000" as Backend {
+    component "FastAPI (uvicorn)" as Api {
+      component "api/routes\n17 роутерів REST" as Routes
+      component "api/deps\nDI, JWT (access + refresh)" as Deps
+      component "services\nбізнес-логіка" as Services
+      component "patterns\nBuilder, Proxy, Factory Method,\nAdapter, Strategy" as Patterns
+      component "core/events\nEventBus (Observer)" as Events
+      component "services/reports\nTemplate Method" as Reports
+      component "repositories\nSQLAlchemy 2.0" as Repos
+      component "StaticFiles /media" as Static
+      component "BackgroundTasks\nVideoProcessingService" as Bg
+      component "MockGatewayAdapter →\nMockPaymentProvider (in-process)" as Pay
+    }
+    component "ffmpeg\n(subprocess)" as Ffmpeg
+  }
+
+  node "контейнер db\npostgres:16 :5432" as DbNode {
+    database "PostgreSQL\nБД cinema\n(17 таблиць, Alembic)" as Db
+  }
+
+  folder "volume pgdata" as Pgdata
+}
+
+folder "./media (bind mount → /media)" as Media {
+  folder "uploads/{asset_id}/source.*" as Uploads
+  folder "hls/{asset_id}/master.m3u8,\n360p|720p|1080p/index.m3u8, seg_*.ts" as HlsDir
+  folder "posters/*.jpg|png|webp" as Posters
+  folder "ads/preroll/master.m3u8" as Ads
+}
+
+Pages --> Query
+Query --> Proxy : HTTP, JSON REST\nAuthorization: Bearer JWT
+Hls --> Proxy : HTTP: GET master.m3u8 (JWT),\nmedia playlists, .ts сегменти
+Hls --> Video : MSE буфер
+Pages --> Charts
+Proxy --> Routes : HTTP /api/*
+Proxy --> Static : HTTP /media/*
+
+Routes --> Deps
+Routes --> Services
+Services --> Patterns
+Services --> Events
+Services --> Reports
+Services --> Repos
+Services --> Pay
+Routes ..> Bg : після 202 Accepted
+Bg --> Ffmpeg : subprocess.run(\nlibx264 + aac, -f hls)
+Repos --> Db : TCP 5432, SQL\n(psycopg 3)
+Db --> Pgdata
+
+Services --> Uploads : запис завантаження\n(потоково, ≤ ліміту)
+Ffmpeg --> HlsDir : пише рендиції\nі сегменти по 6 с
+Services --> Posters : PosterService
+Static --> HlsDir : читає
+Static --> Ads : читає
+Static --> Posters : читає
+Ffmpeg <-- Uploads : читає джерело
+
+note bottom of Pay
+  Mock-шлюз живе в процесі бекенда;
+  реальний банк підключається
+  новим адаптером PaymentGateway
+end note
+
+note bottom of Static
+  Плеєр бере master.m3u8 через /api/playback
+  (PlaybackProxy обрізає якості за планом);
+  медіаплейлисти й сегменти віддає статика /media
+end note
+@enduml

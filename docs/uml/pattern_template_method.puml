@@ -1,0 +1,110 @@
+@startuml pattern_template_method
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 35
+skinparam ranksep 55
+
+title Template Method — звіти (services/reports.py)
+
+class ReportService <<Client>> {
+  generators: dict[str, ReportGenerator]
+  settings: ReportSettingsProvider
+  +kinds(): tuple[str, ...]
+  +generate(kind, params): Report
+}
+
+abstract class "ReportGenerator[RowsT, DataT]" as ReportGenerator <<AbstractClass>> $TEMPLATE {
+  kind: ClassVar[str]
+  title: ClassVar[str]
+  MAX_PERIOD_DAYS = 3660
+  .. шаблонний метод ..
+  +generate(params): Report {final}
+  .. кроки ..
+  #validate(params): Period
+  #{abstract} collect(period): RowsT
+  #{abstract} aggregate(rows, period): DataT
+  #{abstract} summarize(data, period): tuple[SummaryItem]
+  #{abstract} sections(data, period): tuple[ReportSection]
+  #build(data, summary, period): Report
+  .. гачки (hooks) ..
+  #default_period(today): (date, date)
+  #default_group_by(): GroupBy
+  #extra_validation(period)
+}
+
+class PopularTitlesReport <<ConcreteClass>> $TEMPLATE {
+  kind = "popular-titles"
+  TOP_LIMIT = 10
+  #collect(period)
+  #aggregate(rows, period)
+  #summarize(data, period)
+  #sections(data, period)
+}
+
+class UserActivityReport <<ConcreteClass>> $TEMPLATE {
+  kind = "user-activity"
+  MAX_DAILY_DAYS = 366
+  #extra_validation(period)
+  #collect(period)
+  #aggregate(rows, period)
+  #summarize(data, period)
+  #sections(data, period)
+}
+
+class SubscriptionRevenueReport <<ConcreteClass>> $TEMPLATE {
+  kind = "subscription-revenue"
+  #default_period(today): 90 днів
+  #collect(period)
+  #aggregate(rows, period)
+  #summarize(data, period)
+  #sections(data, period)
+}
+
+interface ReportsSource {
+  +today(timezone): date
+  +title_activity(period)
+  +registrations(period)
+  +activity_by_bucket(period)
+  +revenue_by_bucket(period)
+  +payment_status_counts(period)
+  +active_premium(): int
+}
+
+class ReportRepository
+class SettingsService {
+  +report_timezone(): str
+}
+class Report <<dataclass>> {
+  kind, title, date_from, date_to
+  group_by, timezone
+  summary: tuple[SummaryItem]
+  sections: tuple[ReportSection]
+}
+class CsvReportExporter {
+  +export(report): bytes
+  +filename(report): str
+}
+
+ReportService o--> "3" ReportGenerator
+ReportService --> SettingsService : ReportSettingsProvider
+PopularTitlesReport -up-|> ReportGenerator
+UserActivityReport -up-|> ReportGenerator
+SubscriptionRevenueReport -up-|> ReportGenerator
+PopularTitlesReport --> ReportsSource : PopularTitlesSource
+UserActivityReport --> ReportsSource : UserActivitySource
+SubscriptionRevenueReport --> ReportsSource : RevenueSource
+ReportRepository .up.|> ReportsSource
+ReportGenerator ..> Report : <<create>>
+CsvReportExporter ..> Report
+
+note right of ReportGenerator
+  <b>Яку проблему вирішує.</b>
+  Три звіти мають однаковий порядок кроків: перевірити період
+  у часовому поясі з налаштувань → зібрати рядки з БД →
+  агрегувати → підсумок → секції таблиць. generate() фіксує
+  цей порядок (~__init_subclass~__ забороняє його перевизначати),
+  підкласи змінюють лише кроки й гачки, а результат
+  однаково віддається в JSON і CSV.
+end note
+@enduml

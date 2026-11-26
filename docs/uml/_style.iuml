@@ -1,0 +1,26 @@
+' Спільний стиль усіх діаграм. Підключається через !include _style.iuml
+skinparam dpi 150
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam ArrowColor #444444
+skinparam BorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #B0A060
+skinparam ClassBackgroundColor #FFFFFF
+skinparam ClassBorderColor #555555
+skinparam ClassAttributeIconSize 0
+skinparam stereotypeCBackgroundColor #EEEEEE
+skinparam TitleFontSize 15
+
+' Кольори GoF-патернів (фон класу)
+!$FACTORY = "#C8A27A"
+!$TEMPLATE = "#FFF27A"
+!$OBSERVER = "#8EE08E"
+!$BUILDER = "#FFB347"
+!$STRATEGY = "#8FD3FF"
+!$PROXY = "#C9A7FF"
+!$ADAPTER = "#FF9B9B"

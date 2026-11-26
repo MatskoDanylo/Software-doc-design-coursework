@@ -1,0 +1,206 @@
+@startuml classes_domain
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 40
+skinparam ranksep 60
+skinparam packageStyle frame
+
+title Шар моделей (app/models): доменні класи SQLAlchemy з кратністю зв'язків
+
+package "Користувачі — models/user.py, notification.py" {
+  class User {
+    id: int
+    email: str {unique}
+    password_hash: str
+    role: str
+    created_at: datetime
+  }
+  class Profile {
+    user_id: int
+    display_name: str
+    avatar_url: str | None
+    country: str | None
+  }
+  class Notification {
+    id: int
+    kind: str
+    message: str
+    read: bool
+    created_at: datetime
+  }
+}
+
+package "Підписки й оплата — models/billing.py" {
+  class Plan {
+    id: int
+    code: str {unique}
+    name: str
+    price_month: Decimal
+    ads_enabled: bool
+    max_height: int
+  }
+  class Subscription {
+    id: int
+    status: str
+    started_at: datetime
+    expires_at: datetime | None
+  }
+  class Payment {
+    id: int
+    amount: Decimal
+    status: str
+    provider: str
+    external_id: str | None
+    created_at: datetime
+    paid_at: datetime | None
+  }
+}
+
+package "Каталог — models/catalog.py" {
+  class Title {
+    id: int
+    kind: str
+    name: str
+    description: str
+    year: int
+    country: str
+    rating: float
+    poster_url: str | None
+  }
+  class Genre {
+    id: int
+    name: str {unique}
+  }
+  class Season {
+    id: int
+    number: int
+  }
+  class Episode {
+    id: int
+    number: int
+    name: str
+  }
+  class VideoAsset {
+    id: int
+    hls_path: str | None
+    status: str
+    error_message: str | None
+    duration_sec: int | None
+  }
+}
+
+package "Активність і статистика — models/activity.py, stats.py" {
+  class WatchHistory {
+    id: int
+    progress_sec: int
+    finished: bool
+    last_watched: datetime
+  }
+  class Favorite {
+    added_at: datetime
+  }
+  class TitleStats {
+    unique_viewers: int
+    completions: int
+    last_watched_at: datetime | None
+  }
+  class TitleViewer {
+    first_finished_at: datetime
+  }
+}
+
+package "Налаштування — models/settings.py" {
+  class AppSetting {
+    key: str
+    value: JSONB
+    updated_at: datetime
+  }
+}
+
+package "Перелічення (StrEnum)" {
+  enum Role {
+    USER
+    ADMIN
+  }
+  enum PlanCode {
+    FREE
+    PREMIUM
+  }
+  enum SubscriptionStatus {
+    ACTIVE
+    EXPIRED
+    CANCELLED
+  }
+  enum PaymentStatus {
+    CREATED
+    PENDING
+    SUCCESS
+    FAILED
+    +is_final: bool
+  }
+  enum TitleKind {
+    MOVIE
+    SERIES
+  }
+  enum VideoStatus {
+    PENDING
+    PROCESSING
+    READY
+    FAILED
+  }
+  enum NotificationKind {
+    PAYMENT_PENDING
+    PAYMENT_FAILED
+    SUBSCRIPTION_ACTIVATED
+  }
+}
+
+' --- користувачі
+User "1" *-- "0..1" Profile : profile
+User "1" -- "*" Notification
+
+' --- підписки й оплата
+User "1" -- "*" Subscription
+User "1" <-- "*" Payment : user
+Subscription "*" --> "1" Plan : plan
+Payment "*" --> "1" Plan : plan
+
+' --- каталог
+Title "*" --> "*" Genre : genres\n(title_genres)
+Title "1" *-- "*" Season : seasons
+Season "1" *-- "*" Episode : episodes
+Title "1" *-- "0..1" VideoAsset : video
+Episode "1" *-- "0..1" VideoAsset : video
+
+' --- активність
+User "1" -- "*" WatchHistory
+WatchHistory "*" --> "1" Title : title
+WatchHistory "*" --> "0..1" Episode : episode
+User "1" -- "*" Favorite
+Title "1" -- "*" Favorite
+Title "1" -- "0..1" TitleStats
+Title "1" -- "*" TitleViewer
+User "1" -- "*" TitleViewer
+
+' --- перелічення
+User ..> Role
+Plan ..> PlanCode
+Subscription ..> SubscriptionStatus
+Payment ..> PaymentStatus
+Title ..> TitleKind
+VideoAsset ..> VideoStatus
+Notification ..> NotificationKind
+
+note bottom of VideoAsset
+  Рівно один власник:
+  CHECK (title_id IS NULL) <> (episode_id IS NULL)
+  фільм — через Title, серія — через Episode
+end note
+
+note bottom of TitleStats
+  Агрегат переглядів, який оновлює
+  спостерігач TitleStatsUpdater
+  на подію WatchFinished
+end note
+@enduml

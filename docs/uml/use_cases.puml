@@ -1,0 +1,143 @@
+@startuml use_cases
+!include _style.iuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #555555
+}
+skinparam actorStyle awesome
+
+title Діаграма прецедентів — онлайн-кінотеатр Cinema Platform
+
+actor "Гість" as Guest
+actor "Користувач (Free)" as User
+actor "Преміум-користувач" as Premium
+actor "Адміністратор" as Admin
+actor "Платіжний шлюз\n<<зовнішня система>>" as Gateway #FFE0E0
+
+User -[norank]-|> Guest
+Premium -[norank]-|> User
+Admin -[norank]-|> User
+
+rectangle "Cinema Platform" {
+
+  package "Каталог" {
+    usecase "Переглядати каталог\nфільмів і серіалів" as UC_Catalog
+    usecase "Шукати і фільтрувати\n(жанр, рік, країна, тип, рейтинг)" as UC_Search
+    usecase "Переглянути картку тайтла\n(опис, постер, сезони)" as UC_Title
+    usecase "Отримувати рекомендації" as UC_Recs
+    usecase "Переглянути схожі тайтли" as UC_Similar
+    usecase "Зареєструватися" as UC_Register
+    usecase "Увійти (JWT)" as UC_Login
+  }
+
+  package "Перегляд" {
+    usecase "Дивитись відео онлайн (HLS)" as UC_Watch
+    usecase "Перевірити вхід\nі план підписки" as UC_CheckPlan
+    usecase "Обмежити якість\nза планом (720p / 1080p)" as UC_Quality
+    usecase "Показати рекламу\nперед відео (pre-roll)" as UC_Ads
+    usecase "Перемкнути якість\nу плеєрі" as UC_SwitchQuality
+    usecase "Зберігати прогрес\nперегляду" as UC_Progress
+    usecase "Продовжити перегляд" as UC_Continue
+    usecase "Дивитись без реклами\nу якості до 1080p" as UC_WatchPremium
+  }
+
+  package "Профіль і Вибране" {
+    usecase "Переглянути і змінити профіль" as UC_Profile
+    usecase "Додати / прибрати\nу Вибране" as UC_FavToggle
+    usecase "Переглянути Вибране" as UC_FavList
+    usecase "Читати сповіщення" as UC_Notifications
+  }
+
+  package "Підписка та оплата" {
+    usecase "Переглянути плани" as UC_Plans
+    usecase "Оформити Premium (checkout)" as UC_Checkout
+    usecase "Обрати результат оплати\n(success / pending / failed)" as UC_MockResult
+    usecase "Взаємодія з\nплатіжним шлюзом" as UC_Gateway
+    usecase "Активувати Premium\nі надіслати сповіщення" as UC_Activate
+    usecase "Переглянути історію платежів" as UC_PayHistory
+    usecase "Скасувати підписку" as UC_Cancel
+  }
+
+  package "Адміністрування" {
+    usecase "Керувати тайтлами, жанрами,\nсезонами й епізодами" as UC_CRUD
+    usecase "Завантажити постер" as UC_Poster
+    usecase "Завантажити відео" as UC_Upload
+    usecase "Конвертувати у HLS\n(ffmpeg: 360p/720p/1080p)" as UC_Transcode
+    usecase "Керувати користувачами\n(видати / забрати Premium)" as UC_Users
+    usecase "Переглянути платежі" as UC_Payments
+    usecase "Підтвердити або відхилити\npending-платіж" as UC_Resolve
+    usecase "Налаштувати рекомендації\nі часовий пояс звітів" as UC_Settings
+  }
+
+  package "Звіти" {
+    usecase "Переглянути дашборд (KPI)" as UC_Dashboard
+    usecase "Сформувати звіт" as UC_Report
+    usecase "Популярні тайтли і жанри" as UC_RepPopular
+    usecase "Активність користувачів" as UC_RepActivity
+    usecase "Доходи від підписок" as UC_RepRevenue
+    usecase "Експортувати у CSV" as UC_Export
+  }
+}
+
+' --- Гість
+Guest --> UC_Catalog
+Guest --> UC_Title
+Guest --> UC_Recs
+Guest --> UC_Plans
+Guest --> UC_Register
+Guest --> UC_Login
+
+UC_Catalog <.. UC_Search : <<extend>>
+UC_Title <.. UC_Similar : <<extend>>
+
+' --- Користувач
+User --> UC_Watch
+User --> UC_Continue
+User --> UC_Profile
+User --> UC_FavToggle
+User --> UC_FavList
+User --> UC_Notifications
+User --> UC_Checkout
+User --> UC_MockResult
+User --> UC_PayHistory
+
+UC_Watch ..> UC_CheckPlan : <<include>>
+UC_Watch ..> UC_Quality : <<include>>
+UC_Watch ..> UC_Progress : <<include>>
+UC_Watch <.. UC_Ads : <<extend>>\n[план Free]
+UC_Watch <.. UC_SwitchQuality : <<extend>>
+
+UC_Checkout ..> UC_Gateway : <<include>>
+UC_MockResult ..> UC_Gateway : <<include>>
+UC_MockResult <.. UC_Activate : <<extend>>\n[success]
+
+'' --- Преміум
+Premium --> UC_WatchPremium
+Premium --> UC_Cancel
+UC_Watch <|-- UC_WatchPremium
+
+' --- Адміністратор
+Admin --> UC_CRUD
+Admin --> UC_Poster
+Admin --> UC_Upload
+Admin --> UC_Users
+Admin --> UC_Payments
+Admin --> UC_Settings
+Admin --> UC_Dashboard
+Admin --> UC_Report
+
+UC_Upload ..> UC_Transcode : <<include>>
+UC_Payments <.. UC_Resolve : <<extend>>\n[pending]
+UC_Resolve ..> UC_Gateway : <<include>>
+UC_Resolve <.. UC_Activate : <<extend>>\n[success]
+UC_Report <|-- UC_RepPopular
+UC_Report <|-- UC_RepActivity
+UC_Report <|-- UC_RepRevenue
+UC_Report <.. UC_Export : <<extend>>
+
+' --- Зовнішня система
+UC_Gateway -- Gateway
+
+@enduml

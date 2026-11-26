@@ -1,0 +1,152 @@
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Protocol
+
+from app.models import (
+    Episode,
+    Genre,
+    Notification,
+    Payment,
+    PaymentStatus,
+    Plan,
+    Season,
+    Subscription,
+    Title,
+    TitleKind,
+    VideoAsset,
+    WatchHistory,
+)
+
+
+class EntityStore[T](Protocol):
+    def get(self, entity_id: int) -> T | None: ...
+
+    def add(self, entity: T) -> T: ...
+
+    def save(self, entity: T) -> T: ...
+
+    def delete(self, entity: T) -> None: ...
+
+
+class TitleStore(EntityStore[Title], Protocol):
+    def get_by_identity(self, kind: TitleKind, name: str, year: int) -> Title | None: ...
+
+
+class GenreStore(EntityStore[Genre], Protocol):
+    def get_by_name(self, name: str) -> Genre | None: ...
+
+    def get_many(self, genre_ids: Sequence[int]) -> Sequence[Genre]: ...
+
+
+class SeasonStore(EntityStore[Season], Protocol):
+    def get_by_number(self, title_id: int, number: int) -> Season | None: ...
+
+
+class EpisodeStore(EntityStore[Episode], Protocol):
+    def get_by_number(self, season_id: int, number: int) -> Episode | None: ...
+
+
+class VideoAssetStore(EntityStore[VideoAsset], Protocol):
+    def get_by_title(self, title_id: int) -> VideoAsset | None: ...
+
+    def get_by_episode(self, episode_id: int) -> VideoAsset | None: ...
+
+    def fail_processing(self, message: str) -> int: ...
+
+
+class PlanStore(EntityStore[Plan], Protocol):
+    def get_by_code(self, code: str) -> Plan | None: ...
+
+    def list_all(self) -> Sequence[Plan]: ...
+
+
+class SubscriptionStore(EntityStore[Subscription], Protocol):
+    def get_active(self, user_id: int, now: datetime) -> Subscription | None: ...
+
+
+class PaymentStore(EntityStore[Payment], Protocol):
+    def get_for_update(self, payment_id: int) -> Payment | None: ...
+
+    def get_for_user_for_update(self, payment_id: int, user_id: int) -> Payment | None: ...
+
+    def list_for_user(self, user_id: int) -> Sequence[Payment]: ...
+
+    def page(self, status: PaymentStatus | None, page: int, page_size: int) -> tuple[Sequence[Payment], int]: ...
+
+
+class NotificationStore(EntityStore[Notification], Protocol):
+    def list_for_user(self, user_id: int, unread_only: bool, limit: int) -> Sequence[Notification]: ...
+
+    def unread_count(self, user_id: int) -> int: ...
+
+    def get_for_user(self, notification_id: int, user_id: int) -> Notification | None: ...
+
+    def mark_all_read(self, user_id: int) -> int: ...
+
+
+class WatchHistoryStore(EntityStore[WatchHistory], Protocol):
+    def get_entry(self, user_id: int, title_id: int, episode_id: int | None) -> WatchHistory | None: ...
+
+    def upsert(
+        self, user_id: int, title_id: int, episode_id: int | None, progress_sec: int, finished: bool
+    ) -> WatchHistory: ...
+
+    def continue_watching(self, user_id: int, limit: int) -> Sequence[WatchHistory]: ...
+
+
+class FavoriteReader(Protocol):
+    def favorite_ids(self, user_id: int, title_ids: Iterable[int]) -> set[int]: ...
+
+
+class FavoriteStore(FavoriteReader, Protocol):
+    def add(self, user_id: int, title_id: int) -> None: ...
+
+    def remove(self, user_id: int, title_id: int) -> None: ...
+
+    def page(self, user_id: int, page: int, page_size: int) -> tuple[Sequence[Title], int]: ...
+
+
+@dataclass(frozen=True)
+class StatsTotals:
+    titles: int
+    viewers: int
+    completions: int
+
+
+class CompletionRecorder(Protocol):
+    def record_completion(self, title_id: int, user_id: int) -> bool: ...
+
+
+class TitleStatsStore(CompletionRecorder, Protocol):
+    def rebuild(self) -> StatsTotals: ...
+
+
+@dataclass(frozen=True)
+class UserTaste:
+    watched: frozenset[int]
+    finished: frozenset[int]
+    favorites: frozenset[int]
+    last_watched_title_id: int | None
+
+
+class UserTasteReader(Protocol):
+    def taste(self, user_id: int) -> UserTaste: ...
+
+
+class TitleBatchReader(Protocol):
+    def get_many(self, title_ids: Sequence[int]) -> list[Title]: ...
+
+
+@dataclass(frozen=True)
+class StoredSetting:
+    value: Any
+    updated_at: datetime
+
+
+class SettingsStore(Protocol):
+    def get_all(self) -> dict[str, StoredSetting]: ...
+
+    def upsert_many(self, values: dict[str, Any]) -> None: ...
+
+    def timezone_exists(self, name: str) -> bool: ...

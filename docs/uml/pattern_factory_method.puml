@@ -1,0 +1,117 @@
+@startuml pattern_factory_method
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 40
+skinparam ranksep 55
+
+title Factory Method — політики планів Free / Premium (patterns/plan_factory.py)
+
+abstract class PlanPolicyCreator <<Creator>> $FACTORY {
+  plan_code: ClassVar[str]
+  +{abstract} create_policy(plan: Plan): PlanPolicy
+  +build_playback_policy(plan): PlaybackPolicy
+  +quote(plan): PlanQuote
+  -_policy(plan): PlanPolicy
+}
+
+class FreePlanCreator <<ConcreteCreator>> $FACTORY {
+  plan_code = "free"
+  +create_policy(plan): PlanPolicy
+}
+
+class PremiumPlanCreator <<ConcreteCreator>> $FACTORY {
+  plan_code = "premium"
+  duration_days: int
+  +create_policy(plan): PlanPolicy
+}
+
+abstract class PlanPolicy <<Product>> $FACTORY {
+  plan_code: str
+  name: str
+  max_height: int
+  +{abstract} ads_enabled: bool
+  +{abstract} price: Decimal
+  +{abstract} duration_days: int | None
+  +is_purchasable: bool
+  +{abstract} describe(): str
+  +{abstract} can_upgrade_to(other): bool
+}
+
+class FreePlanPolicy <<ConcreteProduct>> $FACTORY {
+  ads_enabled = True
+  price = 0.00
+  duration_days = None
+  +can_upgrade_to(other): other.is_purchasable
+}
+
+class PremiumPlanPolicy <<ConcreteProduct>> $FACTORY {
+  ads_enabled = False
+  price = plan.price_month
+  duration_days = premium_days
+  +can_upgrade_to(other): False
+}
+
+class PlanPolicyRegistry $FACTORY {
+  -_creators: dict[str, PlanPolicyCreator]
+  +creator_for(code): PlanPolicyCreator
+}
+
+class PlaybackPolicy <<dataclass>> {
+  plan_code: str
+  max_height: int
+  ads_enabled: bool
+}
+
+class PlanQuote <<dataclass>> {
+  code, name, price, currency
+  duration_days, ads_enabled, max_height
+  description, purchasable
+}
+
+class SubscriptionService <<Client>> {
+  +policy_for(user): PlaybackPolicy
+  -_default_duration(plan): int
+}
+
+class BillingService <<Client>> {
+  +list_plans(): list[PlanQuote]
+  +checkout(user, plan_code): Checkout
+}
+
+class Plan <<model>> {
+  code: str
+  name: str
+  price_month: Decimal
+  max_height: int
+}
+
+FreePlanCreator -up-|> PlanPolicyCreator
+PremiumPlanCreator -up-|> PlanPolicyCreator
+FreePlanPolicy -up-|> PlanPolicy
+PremiumPlanPolicy -up-|> PlanPolicy
+PlanPolicyCreator .right.> PlanPolicy : create_policy()
+FreePlanCreator ..> FreePlanPolicy : <<create>>
+PremiumPlanCreator ..> PremiumPlanPolicy : <<create>>
+PlanPolicyCreator ..> PlaybackPolicy : <<create>>
+PlanPolicyCreator ..> PlanQuote : <<create>>
+PlanPolicy ..> Plan : читає рядок\nтаблиці plans
+PlanPolicyRegistry o--> "2" PlanPolicyCreator
+SubscriptionService --> PlanPolicyRegistry
+BillingService --> PlanPolicyRegistry
+
+note top of PlanPolicyCreator
+  <b>Яку проблему вирішує.</b>
+  Правила плану (реклама, макс. якість, ціна, тривалість,
+  дозволені переходи) потрібні в оплаті, підписках і плеєрі.
+  Фабричний метод create_policy() створює потрібну політику за
+  кодом плану, тож сервіси не містять if plan.code == "premium",
+  а новий план — це нові Creator і Policy без змін у сервісах.
+end note
+
+note bottom of PlaybackPolicy
+  Продукт, який фабрика віддає для
+  PlaybackProxy: рішення про рекламу
+  і якість у плеєрі
+end note
+@enduml
