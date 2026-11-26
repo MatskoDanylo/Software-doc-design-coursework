@@ -49,11 +49,10 @@ class FakeSource:
     def candidates(self, genre_ids: Collection[int], exclude: Collection[int], limit: int) -> Sequence[TitleFeatures]:
         return [t for t in self.titles.values() if t.genre_ids & set(genre_ids) and t.id not in exclude][:limit]
 
-    def similar_candidates(
-        self, seed: TitleFeatures, exclude: Collection[int], limit: int
-    ) -> Sequence[TitleFeatures]:
+    def similar_candidates(self, seed: TitleFeatures, exclude: Collection[int], limit: int) -> Sequence[TitleFeatures]:
         return [
-            t for t in self.titles.values()
+            t
+            for t in self.titles.values()
             if (t.genre_ids & seed.genre_ids or t.country == seed.country) and t.id not in exclude
         ][:limit]
 
@@ -77,10 +76,17 @@ def ids(items: Sequence[ScoredTitle]) -> list[int]:
     return [i.title_id for i in items]
 
 
-def ctx(watched: Collection[int] = (), finished: Collection[int] = (), favorites: Collection[int] = (),
-        seed: int | None = None) -> RecommendationContext:
+def ctx(
+    watched: Collection[int] = (),
+    finished: Collection[int] = (),
+    favorites: Collection[int] = (),
+    seed: int | None = None,
+) -> RecommendationContext:
     return RecommendationContext(
-        user_id=1, watched=frozenset(watched), finished=frozenset(finished), favorites=frozenset(favorites),
+        user_id=1,
+        watched=frozenset(watched),
+        finished=frozenset(finished),
+        favorites=frozenset(favorites),
         seed_title_id=seed,
     )
 
@@ -116,14 +122,17 @@ class TestPopularity:
 
         assert reasons == ["Популярне цього тижня", "Популярне серед глядачів", "Високий рейтинг"]
 
-    @pytest.mark.parametrize(("days", "reason"), [
-        (7, "Популярне цього тижня"),
-        (1, "Популярне за останні 1 день"),
-        (3, "Популярне за останні 3 дні"),
-        (30, "Популярне за останні 30 днів"),
-        (21, "Популярне за останні 21 день"),
-        (12, "Популярне за останні 12 днів"),
-    ])
+    @pytest.mark.parametrize(
+        ("days", "reason"),
+        [
+            (7, "Популярне цього тижня"),
+            (1, "Популярне за останні 1 день"),
+            (3, "Популярне за останні 3 дні"),
+            (30, "Популярне за останні 30 днів"),
+            (21, "Популярне за останні 21 день"),
+            (12, "Популярне за останні 12 днів"),
+        ],
+    )
     def test_window_reason_uses_configured_days(self, days: int, reason: str) -> None:
         strategy, source = self.strategy(popular(1, wv=1), window_days=days)
 
@@ -149,10 +158,15 @@ class TestGenreAffinity:
         assert taste.watched_genres == {DRAMA, COMEDY}
 
     def test_prefers_genres_of_finished_titles_over_rating(self) -> None:
-        source = FakeSource([
-            title(1, DRAMA), title(2, COMEDY),
-            title(10, DRAMA, rating=5.0), title(11, COMEDY, rating=9.0), title(12, HORROR, rating=10.0),
-        ])
+        source = FakeSource(
+            [
+                title(1, DRAMA),
+                title(2, COMEDY),
+                title(10, DRAMA, rating=5.0),
+                title(11, COMEDY, rating=9.0),
+                title(12, HORROR, rating=10.0),
+            ]
+        )
 
         items = GenreAffinityStrategy(source).recommend(ctx(watched=[1, 2], finished=[1]), 5)
 
@@ -185,6 +199,25 @@ class TestGenreAffinity:
     def test_no_taste_means_no_recommendations(self) -> None:
         assert GenreAffinityStrategy(FakeSource([title(10, DRAMA)])).recommend(ctx(), 5) == []
 
+    def test_titles_removed_from_catalog_do_not_shape_taste(self) -> None:
+        source = FakeSource([title(1, DRAMA), title(10, DRAMA), title(11, COMEDY)])
+
+        strategy = GenreAffinityStrategy(source)
+
+        assert strategy.genre_weights(ctx(watched=[1, 99], finished=[99])).weights == {DRAMA: 1.0}
+        assert strategy.recommend(ctx(watched=[99]), 5) == []
+
+    def test_never_returns_excluded_titles_even_if_source_does(self) -> None:
+        class LeakySource(FakeSource):
+            def candidates(
+                self, genre_ids: Collection[int], exclude: Collection[int], limit: int
+            ) -> Sequence[TitleFeatures]:
+                return list(self.titles.values())
+
+        source = LeakySource([title(1, DRAMA), title(2, DRAMA), title(3, HORROR)])
+
+        assert ids(GenreAffinityStrategy(source).recommend(ctx(watched=[1]), 5)) == [2]
+
 
 class TestSimilar:
     def test_without_seed_returns_nothing(self) -> None:
@@ -195,14 +228,16 @@ class TestSimilar:
 
     def test_ranks_by_shared_genres_close_year_and_country(self) -> None:
         seed = title(1, DRAMA, SCIFI, year=2010, country="США")
-        source = FakeSource([
-            seed,
-            title(2, DRAMA, SCIFI, year=2010, country="США"),
-            title(3, DRAMA, SCIFI, year=1990, country="Франція"),
-            title(4, DRAMA, year=2011, country="США"),
-            title(5, COMEDY, year=2010, country="США"),
-            title(6, HORROR, year=1950, country="Японія"),
-        ])
+        source = FakeSource(
+            [
+                seed,
+                title(2, DRAMA, SCIFI, year=2010, country="США"),
+                title(3, DRAMA, SCIFI, year=1990, country="Франція"),
+                title(4, DRAMA, year=2011, country="США"),
+                title(5, COMEDY, year=2010, country="США"),
+                title(6, HORROR, year=1950, country="Японія"),
+            ]
+        )
 
         items = SimilarTitlesStrategy(source).recommend(ctx(seed=1), 10)
 
@@ -244,15 +279,32 @@ class TestHybrid:
         assert ids(items) == [1]
         assert used.limits == [12] and unused.limits == []
 
+    def test_component_without_positive_scores_does_not_distort_the_mix(self) -> None:
+        empty, zero = StubStrategy(), StubStrategy(ScoredTitle(5, 0.0, "zero"))
+        genre = StubStrategy(ScoredTitle(1, 0.5, "genre"), ScoredTitle(2, 0.25, "genre"))
+
+        items = HybridStrategy([(empty, 0.5), (zero, 0.3), (genre, 0.2)]).recommend(ctx(), 5)
+
+        assert ids(items) == [1, 2]
+        assert [i.score for i in items] == pytest.approx([0.2, 0.1])
+
+    def test_non_positive_limit_returns_nothing(self) -> None:
+        stub = StubStrategy(ScoredTitle(1, 1.0, "a"))
+
+        assert HybridStrategy([(stub, 1.0)]).recommend(ctx(), 0) == []
+        assert stub.limits == []
+
     def test_composes_real_strategies_through_the_same_interface(self) -> None:
         source = FakeSource(
             [title(1, DRAMA), title(2, DRAMA, rating=9.0), title(3, COMEDY)],
             [popular(3, wv=10), popular(2, wv=1)],
         )
-        hybrid = HybridStrategy([
-            (GenreAffinityStrategy(source), 0.5),
-            (PopularityStrategy(source, 7, lambda: NOW), 0.5),
-        ])
+        hybrid = HybridStrategy(
+            [
+                (GenreAffinityStrategy(source), 0.5),
+                (PopularityStrategy(source, 7, lambda: NOW), 0.5),
+            ]
+        )
 
         items = hybrid.recommend(ctx(watched=[1], finished=[1]), 5)
 

@@ -48,9 +48,9 @@ def subscriptions(email: str) -> list[Subscription]:
     with SessionLocal() as session:
         user = UserRepository(session).get_by_email(email)
         assert user is not None
-        return list(session.scalars(
-            select(Subscription).where(Subscription.user_id == user.id).order_by(Subscription.id)
-        ))
+        return list(
+            session.scalars(select(Subscription).where(Subscription.user_id == user.id).order_by(Subscription.id))
+        )
 
 
 def test_user_without_subscription_is_on_free_plan(seeded: None, user_email: str) -> None:
@@ -123,14 +123,26 @@ def test_grant_validates_duration_and_seeded_plans(user_email: str) -> None:
     with service_for(user_email) as (service, user):
         with pytest.raises(UnprocessableError):
             service.grant(user.id, PlanCode.PREMIUM, 0)
-        with pytest.raises(NotFoundError, match="python -m app.seed"):
+        with pytest.raises(NotFoundError, match=r"python -m app\.seed"):
             service.grant(user.id, PlanCode.PREMIUM, 30)
 
 
 def test_free_plan_cannot_be_granted_without_explicit_duration(seeded: None, user_email: str) -> None:
+    with service_for(user_email) as (service, user), pytest.raises(UnprocessableError, match="cannot be granted"):
+        service.grant(user.id, PlanCode.FREE)
+
+
+def test_granting_another_plan_expires_the_active_one(seeded: None, user_email: str) -> None:
     with service_for(user_email) as (service, user):
-        with pytest.raises(UnprocessableError, match="cannot be granted"):
-            service.grant(user.id, PlanCode.FREE)
+        service.grant(user.id, PlanCode.PREMIUM, 30)
+    later = NOW + timedelta(days=3)
+    with service_for(user_email, later) as (service, user):
+        service.grant(user.id, PlanCode.FREE, 5)
+        assert service.policy_for(user).plan_code == "free"
+
+    premium, free = subscriptions(user_email)
+    assert (premium.status, free.status) == (SubscriptionStatus.EXPIRED, SubscriptionStatus.ACTIVE)
+    assert free.expires_at == later + timedelta(days=5)
 
 
 def test_cancelled_subscription_keeps_access_until_expiry(seeded: None, user_email: str) -> None:
@@ -156,9 +168,8 @@ def test_cancel_is_idempotent(seeded: None, user_email: str) -> None:
 
 
 def test_cancel_without_subscription_conflicts(seeded: None, user_email: str) -> None:
-    with service_for(user_email) as (service, user):
-        with pytest.raises(ConflictError) as exc:
-            service.cancel(user)
+    with service_for(user_email) as (service, user), pytest.raises(ConflictError) as exc:
+        service.cancel(user)
 
     assert exc.value.code == "no_active_subscription"
 
@@ -199,9 +210,7 @@ def test_me_reports_free_plan(client: TestClient, user_headers: dict[str, str]) 
     assert body["subscription"] == {"plan_code": "free", "expires_at": None, "cancelled": False}
 
 
-def test_me_reports_premium_and_cancellation(
-    client: TestClient, seeded: None, user_headers: dict[str, str]
-) -> None:
+def test_me_reports_premium_and_cancellation(client: TestClient, seeded: None, user_headers: dict[str, str]) -> None:
     grant_premium_main(["user@example.com", "--days", "10"])
 
     me = client.get("/api/users/me", headers=user_headers).json()["subscription"]

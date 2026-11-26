@@ -14,7 +14,7 @@ from app.models import TitleKind, VideoAsset, VideoStatus
 from app.repositories.video_asset_repository import video_asset_transaction
 from app.services.hls_playlist import MasterPlaylist, Variant
 from app.services.hls_transcoder import DEFAULT_RENDITIONS, Rendition, TranscodeError, TranscodeResult
-from app.services.video_service import INTERRUPTED_MESSAGE, VideoProcessingService
+from app.services.video_service import INTERRUPTED_MESSAGE, VideoProcessingService, detect_video_extension
 from tests.factories import add_season, make_title
 from tests.helpers import assert_error
 
@@ -78,8 +78,13 @@ def test_movie_upload_is_transcoded_in_background(
     body = r.json()
     assert (body["title_id"], body["episode_id"], body["status"]) == (catalog["movie"], None, "pending")
     assert asset_status(client, body["id"], admin_headers) == {
-        "id": body["id"], "title_id": catalog["movie"], "episode_id": None, "status": "ready",
-        "error_message": None, "hls_path": f"hls/{body['id']}/master.m3u8", "duration_sec": 40,
+        "id": body["id"],
+        "title_id": catalog["movie"],
+        "episode_id": None,
+        "status": "ready",
+        "error_message": None,
+        "hls_path": f"hls/{body['id']}/master.m3u8",
+        "duration_sec": 40,
     }
     assert [p.name for p in transcoder.calls] == ["source.mp4"]
     assert transcoder.received == [MP4]
@@ -106,7 +111,10 @@ def test_failed_transcoding_is_reported(
 
     status = asset_status(client, asset_id, admin_headers)
     assert (status["status"], status["error_message"], status["hls_path"], status["duration_sec"]) == (
-        "failed", "ffmpeg exited with code 1: broken input", None, None,
+        "failed",
+        "ffmpeg exited with code 1: broken input",
+        None,
+        None,
     )
 
 
@@ -149,8 +157,12 @@ def test_series_title_takes_videos_per_episode(
     [("movie.avi", MP4), ("movie.mp4", b"plain text, not a video"), ("movie.mkv", MP4), ("movie", MP4)],
 )
 def test_unsupported_files_are_rejected(
-    client: TestClient, admin_headers: dict[str, str], catalog: dict[str, int], transcoder: FakeTranscoder,
-    name: str, data: bytes,
+    client: TestClient,
+    admin_headers: dict[str, str],
+    catalog: dict[str, int],
+    transcoder: FakeTranscoder,
+    name: str,
+    data: bytes,
 ) -> None:
     r = upload(client, f"/api/admin/titles/{catalog['movie']}/video", admin_headers, name, data)
 
@@ -277,3 +289,34 @@ def test_process_records_unexpected_errors(catalog: dict[str, int]) -> None:
 
     assert processor(fake).process(asset_id) is VideoStatus.FAILED
     assert get_asset(asset_id).error_message == "disk full"
+
+
+@pytest.mark.parametrize(
+    ("name", "head", "expected"),
+    [
+        ("clip.MP4", MP4, "mp4"),
+        ("clip.mov", b"\x00\x00\x00\x14moov" + b"\x00" * 16, "mov"),
+        ("clip.mov", b"\x00\x00\x00\x14junk" + b"\x00" * 16, None),
+        ("clip.mkv", MKV, "mkv"),
+        (None, MP4, None),
+    ],
+)
+def test_video_type_is_detected_by_extension_and_signature(name: str | None, head: bytes, expected: str | None) -> None:
+    assert detect_video_extension(name, head) == expected
+
+
+def test_asset_deleted_during_transcoding_is_skipped(catalog: dict[str, int]) -> None:
+    asset_id = make_asset(catalog["movie"], VideoStatus.PENDING)
+    LocalVideoStore(MEDIA).save_source(asset_id, io.BytesIO(MP4), "mp4", 1024)
+
+    class DeletingTranscoder(FakeTranscoder):
+        def transcode(
+            self, source: Path, output_dir: Path, renditions: Sequence[Rendition] = DEFAULT_RENDITIONS
+        ) -> TranscodeResult:
+            with SessionLocal() as session, session.begin():
+                session.delete(session.get(VideoAsset, asset_id))
+            return super().transcode(source, output_dir, renditions)
+
+    assert processor(DeletingTranscoder()).process(asset_id) is None
+    with SessionLocal() as session:
+        assert session.get(VideoAsset, asset_id) is None

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from decimal import Decimal
 
 import pytest
@@ -32,7 +33,10 @@ def test_provider_speaks_its_own_dialect(provider: MockPaymentProvider) -> None:
 
     assert invoice["invoice_id"].startswith("inv_")
     assert (invoice["state"], invoice["sum"], invoice["ccy"], invoice["merchant_ref"]) == (
-        "NEW", 9900, "980", "payment-1",
+        "NEW",
+        9900,
+        "980",
+        "payment-1",
     )
     assert provider.settle(invoice["invoice_id"], "hold")["state"] == "WAIT"
     assert provider.settle(invoice["invoice_id"], "approve")["state"] == "OK"
@@ -56,6 +60,23 @@ def test_provider_raises_its_own_errors(provider: MockPaymentProvider) -> None:
     with pytest.raises(MockProviderError) as exc:
         provider.settle(invoice["invoice_id"], "approve")
     assert exc.value.err_code == "E_FINAL_STATE"
+
+
+@pytest.mark.parametrize(
+    ("call", "err_code"),
+    [
+        (lambda p: p.open_invoice(0, "980", "x", "payment-1"), "E_BAD_SUM"),
+        (lambda p: p.open_invoice(100, "840", "x", "payment-1"), "E_BAD_CCY"),
+        (lambda p: p.settle(p.open_invoice(100, "980", "x", "payment-1")["invoice_id"], "refund"), "E_BAD_SCENARIO"),
+    ],
+    ids=["non-positive-sum", "foreign-currency", "unknown-scenario"],
+)
+def test_provider_validates_its_input(
+    provider: MockPaymentProvider, call: Callable[[MockPaymentProvider], object], err_code: str
+) -> None:
+    with pytest.raises(MockProviderError) as exc:
+        call(provider)
+    assert exc.value.err_code == err_code
 
 
 def test_adapter_implements_target_and_simulator(adapter: MockGatewayAdapter) -> None:
@@ -151,14 +172,22 @@ def test_settling_final_invoice_becomes_state_conflict(adapter: MockGatewayAdapt
     assert exc.value.status_code == 409
 
 
-def test_unknown_provider_state_is_a_gateway_error(
-    adapter: MockGatewayAdapter, provider: MockPaymentProvider
-) -> None:
+def test_unknown_provider_state_is_a_gateway_error(adapter: MockGatewayAdapter, provider: MockPaymentProvider) -> None:
     payment = adapter.create_payment(1, Decimal("99.00"), "UAH", "x")
     provider._invoices[payment.external_id]["state"] = "REFUNDED"
 
     with pytest.raises(PaymentGatewayError, match="REFUNDED"):
         adapter.get_status(payment.external_id)
+
+
+def test_unknown_provider_currency_is_a_gateway_error(
+    adapter: MockGatewayAdapter, provider: MockPaymentProvider
+) -> None:
+    payment = adapter.create_payment(1, Decimal("99.00"), "UAH", "x")
+    provider._invoices[payment.external_id]["ccy"] = "840"
+
+    with pytest.raises(PaymentGatewayError, match="840"):
+        adapter.simulate(payment.external_id, PaymentOutcome.SUCCESS)
 
 
 def test_payment_status_finality() -> None:
