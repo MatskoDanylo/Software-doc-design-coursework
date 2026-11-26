@@ -1,0 +1,120 @@
+@startuml pattern_strategy
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 35
+skinparam ranksep 55
+
+title Strategy — рекомендації (patterns/recommendation.py)
+
+class RecommendationService <<Context>> $STRATEGY {
+  registry: StrategyRegistry
+  source: RecommendationSource
+  config: RecommendationConfigProvider
+  +recommend(user, limit, strategy_code): RecommendationList
+  +similar(title_id, limit, user): list[RecommendationRead]
+  +{static} choose_strategy(context, requested): str
+  -_fill_with_popular(env, context, items, limit)
+}
+
+abstract class RecommendationStrategy <<Strategy>> $STRATEGY {
+  code: ClassVar[str]
+  +{abstract} recommend(context, limit): list[ScoredTitle]
+}
+
+class PopularityStrategy <<ConcreteStrategy>> $STRATEGY {
+  code = "popularity"
+  window_days: int
+  +recommend(context, limit)
+}
+class GenreAffinityStrategy <<ConcreteStrategy>> $STRATEGY {
+  code = "genre_affinity"
+  FINISHED_WEIGHT = 2.0, FAVORITE_WEIGHT = 1.5
+  +genre_weights(context): GenreWeights
+  +recommend(context, limit)
+}
+class SimilarTitlesStrategy <<ConcreteStrategy>> $STRATEGY {
+  code = "similar"
+  GENRE 0.6 / YEAR 0.25 / COUNTRY 0.15
+  +{static} similarity(seed, other): float
+  +recommend(context, limit)
+}
+class HybridStrategy <<ConcreteStrategy>> $STRATEGY {
+  code = "hybrid"
+  components: list[(RecommendationStrategy, float)]
+  +recommend(context, limit)
+}
+
+class StrategyRegistry $STRATEGY {
+  -_factories: dict[str, StrategyFactory]
+  +register(code, factory)
+  +codes(): tuple[str, ...]
+  +ensure_known(code): str
+  +create(code, env): RecommendationStrategy
+}
+
+class StrategyEnv <<dataclass>> {
+  source: RecommendationSource
+  config: RecommendationConfig
+  clock: Callable[[], datetime]
+  registry: StrategyRegistry
+  +create(code): RecommendationStrategy
+}
+
+class RecommendationContext <<dataclass>> {
+  user_id: int | None
+  watched / finished / favorites: frozenset[int]
+  seed_title_id: int | None
+  +has_taste: bool
+}
+
+class RecommendationConfig <<dataclass>> {
+  default_strategy: str
+  hybrid_weights: Mapping[str, float]
+  popularity_window_days: int
+}
+
+interface RecommendationSource {
+  +popular(since, exclude, limit)
+  +features(title_ids)
+  +candidates(genre_ids, exclude, limit)
+  +similar_candidates(seed, exclude, limit)
+}
+
+class RecommendationRepository
+class SettingsService {
+  +recommendation_config(): RecommendationConfig
+}
+
+RecommendationService --> StrategyRegistry
+RecommendationService ..> StrategyEnv : <<create>>
+RecommendationService ..> RecommendationStrategy : recommend()
+RecommendationService ..> RecommendationContext : <<create>>
+RecommendationService --> SettingsService : RecommendationConfigProvider
+SettingsService ..> RecommendationConfig
+StrategyRegistry ..> RecommendationStrategy : <<create>>
+StrategyEnv --> StrategyRegistry
+PopularityStrategy -up-|> RecommendationStrategy
+GenreAffinityStrategy -up-|> RecommendationStrategy
+SimilarTitlesStrategy -up-|> RecommendationStrategy
+HybridStrategy -up-|> RecommendationStrategy
+HybridStrategy o-up-> "*" RecommendationStrategy : components (ваги з config)
+PopularityStrategy --> RecommendationSource
+GenreAffinityStrategy --> RecommendationSource
+SimilarTitlesStrategy --> RecommendationSource
+RecommendationRepository .up.|> RecommendationSource
+
+note right of RecommendationService
+  <b>Яку проблему вирішує.</b>
+  Є кілька алгоритмів рекомендацій, і адміністратор обирає
+  стратегію, ваги гібрида й вікно популярності без зміни коду.
+  Сервіс-контекст бере стратегію з реєстру за кодом
+  із налаштувань; гостю і новачку без історії
+  choose_strategy() дає популярне.
+end note
+
+note bottom of RecommendationRepository
+  popular() бере title_stats, які
+  оновлює спостерігач TitleStatsUpdater
+end note
+@enduml

@@ -1,0 +1,116 @@
+@startuml pattern_observer
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 35
+skinparam ranksep 55
+
+title Observer — доменні події (core/events.py, event_wiring.py)
+
+package "Видавці (publish)" {
+  class BillingService {
+    -_apply(payment, status)
+  }
+  class SubscriptionService {
+    +grant(user_id, plan_code, days)
+  }
+  class HistoryService {
+    +record_progress(user, data)
+  }
+}
+
+interface EventPublisher {
+  +publish(event: DomainEvent)
+}
+
+class EventBus <<Subject>> $OBSERVER {
+  session: Session
+  -_handlers: dict[type[DomainEvent], list[EventHandler]]
+  +subscribe(event_type, handler)
+  +unsubscribe(event_type, handler)
+  +handlers_for(event_type): tuple[EventHandler]
+  +publish(event)
+}
+
+interface "EventHandler[E]" as EventHandler <<Observer>> $OBSERVER {
+  +handle(event: E, session: Session)
+}
+
+class SubscriptionActivator <<ConcreteObserver>> $OBSERVER {
+  +handle(event: PaymentSucceeded, session)
+}
+class NotificationService <<ConcreteObserver>> $OBSERVER {
+  +handle(event: PaymentPending | PaymentFailed | SubscriptionActivated, session)
+}
+class TitleStatsUpdater <<ConcreteObserver>> $OBSERVER {
+  +handle(event: WatchFinished, session)
+}
+
+class event_wiring <<module>> {
+  +create_event_bus(session, plan_policies): EventBus
+}
+
+class DomainEvent <<frozen dataclass>>
+class PaymentSucceeded {
+  payment_id, user_id, plan_code, amount
+}
+class PaymentPending {
+  payment_id, user_id, plan_code, amount
+}
+class PaymentFailed {
+  payment_id, user_id, plan_code, amount
+}
+class SubscriptionActivated {
+  user_id, subscription_id, plan_code, expires_at
+}
+class WatchFinished {
+  user_id, title_id, episode_id
+}
+
+BillingService --> EventPublisher : PaymentSucceeded / Pending / Failed
+SubscriptionService --> EventPublisher : SubscriptionActivated
+HistoryService --> EventPublisher : WatchFinished
+EventBus .up.|> EventPublisher
+EventBus o--> "*" EventHandler
+SubscriptionActivator .up.|> EventHandler
+NotificationService .up.|> EventHandler
+TitleStatsUpdater .up.|> EventHandler
+event_wiring ..> EventBus : subscribe()
+EventBus ..> DomainEvent : publish()
+PaymentSucceeded -up-|> DomainEvent
+PaymentPending -up-|> DomainEvent
+PaymentFailed -up-|> DomainEvent
+SubscriptionActivated -up-|> DomainEvent
+WatchFinished -up-|> DomainEvent
+SubscriptionActivator ..> SubscriptionService : grant() → SubscriptionActivated
+
+PaymentSucceeded -[hidden]down- SubscriptionActivated
+PaymentPending -[hidden]down- WatchFinished
+
+note bottom of NotificationService
+  пише рядок у notifications
+  (NotificationStore.add)
+end note
+
+note bottom of TitleStatsUpdater
+  record_completion() оновлює
+  title_stats і title_viewers
+end note
+
+note right of event_wiring
+  Підписки — лише тут:
+  PaymentSucceeded → SubscriptionActivator
+  PaymentPending, PaymentFailed,
+  SubscriptionActivated → NotificationService
+  WatchFinished → TitleStatsUpdater
+end note
+
+note left of EventBus
+  <b>Яку проблему вирішує.</b>
+  Оплата і перегляд мають побічні наслідки: продовжити підписку,
+  надіслати сповіщення, оновити статистику популярності. Видавець
+  лише публікує подію й не знає своїх спостерігачів, а нового
+  спостерігача додають рядком у event_wiring. Шина синхронна:
+  обробники працюють у тій самій транзакції, помилка відкочує все.
+end note
+@enduml

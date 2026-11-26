@@ -1,0 +1,102 @@
+@startuml pattern_proxy
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 40
+skinparam ranksep 55
+
+title Proxy — доступ до відтворення (patterns/playback_proxy.py)
+
+class "routes.playback" as Router <<Client>> {
+  GET /titles/{title_id}/playback
+  GET /playback/{asset_id}/master.m3u8
+}
+
+abstract class PlaybackService <<Subject>> $PROXY {
+  +{abstract} get_playback(user, title_id, episode_id): Playback
+  +{abstract} get_master_manifest(user, asset_id): MasterPlaylist
+}
+
+class RealPlaybackService <<RealSubject>> $PROXY {
+  targets: PlaybackTargetResolver
+  assets: VideoAssetStore
+  manifests: ManifestSource
+  history: WatchHistoryStore
+  +get_playback(user, title_id, episode_id): Playback
+  +get_master_manifest(user, asset_id): MasterPlaylist
+  -_require_ready(asset): VideoAsset
+  -_load(asset): MasterPlaylist
+  -_resume_position(user, title_id, episode_id): int
+}
+
+class PlaybackProxy <<Proxy>> $PROXY {
+  real: PlaybackService
+  policies: PlaybackPolicyProvider
+  ads: AdProvider
+  +get_playback(user, title_id, episode_id): Playback
+  +get_master_manifest(user, asset_id): MasterPlaylist
+  -_policy(user): PlaybackPolicy
+  -{static} _restrict(manifest, policy): MasterPlaylist
+}
+
+interface PlaybackPolicyProvider {
+  +policy_for(user): PlaybackPolicy
+}
+interface AdProvider {
+  +preroll_url(): str | None
+}
+
+class SubscriptionService {
+  +policy_for(user): PlaybackPolicy
+}
+class LocalAdProvider {
+  PREROLL_PATH = "ads/preroll/master.m3u8"
+  +preroll_url(): str | None
+}
+
+class Playback <<dataclass>> {
+  asset_id: int
+  manifest: MasterPlaylist
+  ads: AdBreak
+  resume_position_sec: int
+  plan_code: str | None
+}
+class PlaybackPolicy <<dataclass>> {
+  plan_code: str
+  max_height: int
+  ads_enabled: bool
+}
+class MasterPlaylist <<dataclass>> {
+  variants: tuple[Variant, ...]
+  +limited_to(max_height): MasterPlaylist
+  +render(): str
+}
+
+Router --> PlaybackService
+RealPlaybackService -up-|> PlaybackService
+PlaybackProxy -up-|> PlaybackService
+PlaybackProxy o-up-> "1 real" PlaybackService : делегує
+PlaybackProxy --> PlaybackPolicyProvider
+PlaybackProxy --> AdProvider
+SubscriptionService .up.|> PlaybackPolicyProvider
+LocalAdProvider .up.|> AdProvider
+PlaybackService ..> Playback
+Playback *-- MasterPlaylist
+PlaybackProxy ..> PlaybackPolicy
+PlaybackProxy ..> MasterPlaylist : limited_to(max_height)
+
+note right of PlaybackProxy
+  <b>Яку проблему вирішує.</b>
+  Видача відео не повинна знати про підписки. Проксі має той самий
+  інтерфейс, що й RealPlaybackService: спершу вимагає вхід (інакше 401),
+  бере політику плану, потім делегує реальному сервісу і прибирає з
+  master.m3u8 якості вище max_height (Free — 720p, Premium — 1080p)
+  та додає pre-roll рекламу лише для Free.
+end note
+
+note bottom of Router
+  api/deps.get_playback_service() повертає
+  PlaybackProxy(RealPlaybackService(...),
+  SubscriptionService, LocalAdProvider)
+end note
+@enduml

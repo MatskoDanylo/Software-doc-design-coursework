@@ -1,0 +1,89 @@
+@startuml pattern_builder
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 40
+skinparam ranksep 50
+
+title Builder — пошук і фільтри каталогу (patterns/title_query_builder.py)
+
+class "routes.catalog" as Router <<router>> {
+  GET /titles?q&genre&year_from&year_to&country&kind&min_rating&sort&order&page&page_size
+}
+
+class TitleFilters <<schemas.catalog>> {
+  q: str | None
+  genre: list[int]
+  year_from / year_to: int | None
+  country: str | None
+  kind: TitleKind | None
+  min_rating: float | None
+  sort: SortField | None
+  order: SortOrder | None
+  page / page_size: int
+}
+
+class CatalogService <<Director>> $BUILDER {
+  +{static} build_query(filters): TitleQuery
+  +search(filters, viewer_id): TitlePage
+}
+
+class TitleQueryBuilder <<Builder>> $BUILDER {
+  -_conditions: list[ColumnElement[bool]]
+  -_order: list[ColumnElement]
+  -_page: int = 1
+  -_page_size: int = 20
+  MAX_PAGE_SIZE = 50
+  +with_text(text): Self
+  +with_genres(genre_ids): Self
+  +with_year_range(year_from, year_to): Self
+  +with_country(country): Self
+  +with_kind(kind): Self
+  +with_min_rating(min_rating): Self
+  +sort_by(field, order): Self
+  +paginate(page, page_size): Self
+  +build(): TitleQuery
+}
+
+class TitleQuery <<Product>> $BUILDER {
+  items: Select[tuple[Title]]
+  count: Select[tuple[int]]
+  page: int
+  page_size: int
+}
+
+enum SortField {
+  RATING
+  YEAR
+  NAME
+  POPULARITY
+}
+
+class TitleRepository {
+  +search(query: TitleQuery): tuple[Sequence[Title], int]
+}
+
+Router ..> TitleFilters
+Router --> CatalogService
+CatalogService ..> TitleFilters : читає
+CatalogService ..> TitleQueryBuilder : <<create>>\nланцюжок with_*()
+TitleQueryBuilder ..> TitleQuery : build()
+TitleQueryBuilder ..> SortField
+CatalogService --> TitleRepository : TitleReader
+TitleRepository ..> TitleQuery : виконує items і count
+
+note right of TitleQueryBuilder
+  <b>Яку проблему вирішує.</b>
+  Каталог має 7 незалежних необов'язкових фільтрів,
+  сортування і пагінацію. Builder додає умову лише для
+  заданого фільтра, перевіряє кожен параметр (рік, рейтинг,
+  розмір сторінки) і в build() збирає узгоджену пару
+  запитів «сторінка + загальна кількість», замість одного
+  методу з десятком if і ручним склеюванням SQL.
+end note
+
+note bottom of TitleQuery
+  Продукт незмінний (frozen dataclass):
+  репозиторій лише виконує готові запити
+end note
+@enduml

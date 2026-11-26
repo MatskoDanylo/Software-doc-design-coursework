@@ -82,3 +82,69 @@ docker run --rm -e PLANTUML_LIMIT_SIZE=8192 -v "${PWD}/docs/uml:/data" plantuml/
 `Favorite`, `WatchHistory` і `TitleViewer` — асоціативні класи між `User` і `Title`. Перелічення (`StrEnum`)
 задають допустимі значення рядкових полів `role`, `code` і `status`. Фізичну схему з ключами й обмеженнями показує
 ER-діаграма.
+
+## Діаграми окремих патернів
+
+На кожній — класи одного патерну з ключовими методами, роль GoF у стереотипі, той самий колір, що й на
+оглядовій, і примітка «Яку проблему вирішує». Білі класи — клієнти патерну та допоміжні типи. Ці діаграми
+розраховані на друк на A4 (альбомна орієнтація).
+
+### Builder — `pattern_builder.png`
+
+![Builder](pattern_builder.png)
+
+`CatalogService.build_query()` (Director) викликає ланцюжок `with_*()` у `TitleQueryBuilder` і отримує незмінний
+продукт `TitleQuery` — пару SQL-запитів «сторінка» і «загальна кількість». Кожен крок додає умову лише для
+заданого фільтра й перевіряє свій параметр.
+
+### Factory Method — `pattern_factory_method.png`
+
+![Factory Method](pattern_factory_method.png)
+
+Абстрактний `PlanPolicyCreator` оголошує фабричний метод `create_policy()`, `FreePlanCreator` і
+`PremiumPlanCreator` створюють відповідні `PlanPolicy`. На спільному інтерфейсі продукту базові методи творця
+`quote()` і `build_playback_policy()` будують ціну для сторінки планів і `PlaybackPolicy` для плеєра.
+`PlanPolicyRegistry` видає творця за кодом плану.
+
+### Proxy — `pattern_proxy.png`
+
+![Proxy](pattern_proxy.png)
+
+`PlaybackProxy` і `RealPlaybackService` реалізують один `PlaybackService`, тому роутер не помічає підміни.
+Проксі перевіряє вхід, бере політику плану через `PlaybackPolicyProvider` (його реалізує `SubscriptionService`),
+делегує реальному сервісу й обрізає `MasterPlaylist` до `max_height`, а для Free додає pre-roll від `AdProvider`.
+
+### Adapter — `pattern_adapter.png`
+
+![Adapter](pattern_adapter.png)
+
+`BillingService` знає лише цільові інтерфейси `PaymentGateway` і `PaymentSimulator`. `MockGatewayAdapter`
+реалізує обидва поверх `MockPaymentProvider` з несумісним API: перекладає гривні в копійки, `UAH` у `"980"`,
+стани `NEW/WAIT/OK/DECLINED` у `PaymentStatus`, а помилки `E_*` — у винятки застосунку з HTTP-кодами 502 і 409.
+
+### Observer — `pattern_observer.png`
+
+![Observer](pattern_observer.png)
+
+Сервіси-видавці залежать лише від `EventPublisher`. `EventBus` (Subject) зберігає обробників за типом події,
+а підписки зібрано в одному місці — `event_wiring.create_event_bus()`. Ланцюжок
+`PaymentSucceeded → SubscriptionActivator → grant() → SubscriptionActivated → NotificationService` показує, що
+спостерігач сам може стати видавцем.
+
+### Strategy — `pattern_strategy.png`
+
+![Strategy](pattern_strategy.png)
+
+`RecommendationService` (Context) бере стратегію з `StrategyRegistry` за кодом із налаштувань адміністратора.
+Чотири конкретні стратегії мають спільний метод `recommend(context, limit)`. `HybridStrategy` одночасно є
+стратегією і композицією інших стратегій із вагами з `RecommendationConfig`. Дані стратегії беруть лише через
+протокол `RecommendationSource`.
+
+### Template Method — `pattern_template_method.png`
+
+![Template Method](pattern_template_method.png)
+
+`ReportGenerator.generate()` позначений `{final}` і задає порядок кроків: `validate → collect → aggregate →
+summarize → build`. Кожен звіт реалізує абстрактні кроки, а через гачки змінює поведінку за замовчуванням:
+`UserActivityReport` обмежує денне групування (`extra_validation`), `SubscriptionRevenueReport` бере 90 днів
+замість 30 (`default_period`).

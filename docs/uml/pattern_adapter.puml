@@ -1,0 +1,91 @@
+@startuml pattern_adapter
+!include _style.iuml
+set separator none
+hide empty members
+skinparam nodesep 45
+skinparam ranksep 55
+
+title Adapter — платіжний шлюз (patterns/payment_gateway.py)
+
+class BillingService <<Client>> {
+  gateway: PaymentGateway
+  simulator: PaymentSimulator
+  +checkout(user, plan_code): Checkout
+  +submit_mock_result(user, payment_id, outcome): Payment
+  +resolve(payment_id, outcome): Payment
+  -_open_invoice(payment): str
+  -_gateway_result(payment, outcome): PaymentStatus
+}
+
+interface PaymentGateway <<Target>> $ADAPTER {
+  provider_name: str
+  +create_payment(payment_id, amount: Decimal, currency: str, description): GatewayPayment
+  +get_status(external_id): PaymentStatus
+}
+
+interface PaymentSimulator <<Target>> $ADAPTER {
+  +simulate(external_id, outcome: PaymentOutcome): GatewayPayment
+}
+
+class MockGatewayAdapter <<Adapter>> $ADAPTER {
+  provider_name = "mock"
+  provider: MockPaymentProvider
+  _CURRENCIES = {"UAH": "980"}
+  _STATUSES = {NEW→CREATED, WAIT→PENDING, OK→SUCCESS, DECLINED→FAILED}
+  _SCENARIOS = {SUCCESS→"approve", PENDING→"hold", FAILED→"decline"}
+  +create_payment(payment_id, amount, currency, description): GatewayPayment
+  +get_status(external_id): PaymentStatus
+  +simulate(external_id, outcome): GatewayPayment
+  -_to_payment(invoice: dict): GatewayPayment
+  -{static} _call(method, *args): dict
+}
+
+class MockPaymentProvider <<Adaptee>> $ADAPTER {
+  -_invoices: dict[str, dict]
+  +open_invoice(sum_kop: int, ccy: str, memo, merchant_ref): dict
+  +settle(invoice_id, scenario: str): dict
+  +inspect(invoice_id): dict
+}
+
+class MockProviderError <<exception>> {
+  err_code: str
+  text: str
+}
+
+class GatewayPayment <<dataclass>> {
+  external_id: str
+  status: PaymentStatus
+  amount: Decimal
+  currency: str
+}
+
+class PaymentGatewayError <<BadGatewayError 502>>
+class GatewayPaymentNotFound
+class GatewayStateConflict <<ConflictError 409>>
+
+BillingService --> PaymentGateway
+BillingService --> PaymentSimulator
+MockGatewayAdapter .up.|> PaymentGateway
+MockGatewayAdapter .up.|> PaymentSimulator
+MockGatewayAdapter o--> "1" MockPaymentProvider : provider
+MockPaymentProvider ..> MockProviderError : raise
+MockGatewayAdapter ..> GatewayPayment : <<create>>
+MockGatewayAdapter ..> PaymentGatewayError : _translate()
+GatewayPaymentNotFound -up-|> PaymentGatewayError
+MockGatewayAdapter ..> GatewayStateConflict : _translate()
+
+note right of MockPaymentProvider
+  «Чужий» SDK еквайрингу: суми в копійках,
+  числовий код валюти ISO 4217 ("980"),
+  рядкові стани NEW/WAIT/OK/DECLINED,
+  словники і власні коди помилок E_*.
+end note
+
+note top of MockGatewayAdapter
+  <b>Яку проблему вирішує.</b>
+  BillingService працює з доменними типами (Decimal-гривні, UAH,
+  PaymentStatus), а провайдер — зі своїм API. Адаптер перекладає
+  суми, валюти, стани й помилки в обидва боки, тож заміна mock на
+  реальний банк — це новий адаптер, без змін у BillingService.
+end note
+@enduml
