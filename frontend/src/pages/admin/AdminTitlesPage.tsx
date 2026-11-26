@@ -5,20 +5,23 @@ import { errorMessage } from '../../api/errors'
 import { useCatalogFilters } from '../../catalog/useCatalogFilters'
 import AdminTitleRow from '../../components/admin/AdminTitleRow'
 import SearchInput from '../../components/catalog/SearchInput'
-import PageLoader from '../../components/PageLoader'
 import Pagination from '../../components/Pagination'
+import { TableSkeleton } from '../../components/Skeletons'
 import StateMessage from '../../components/StateMessage'
 import { buttonPrimary } from '../../components/ui'
 import type { TitlePage, TitleSearchParams } from '../../types/catalog'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 const ADMIN_PAGE_SIZE = 20
 const HEADERS = ['Постер', 'Назва', 'Тип', 'Рік', 'Країна', 'Рейтинг', 'Дії']
 const HIDDEN_HEADERS = new Set(['Постер', 'Дії'])
 
 function TitlesTable({ query, onPageChange }: { query: UseQueryResult<TitlePage>; onPageChange: (page: number) => void }) {
-  if (query.isPending) return <PageLoader />
+  if (query.isPending) return <TableSkeleton columns={6} />
   if (query.isError) return <StateMessage tone="error" title="Не вдалося завантажити список" text={errorMessage(query.error)} />
-  if (query.data.items.length === 0) return <StateMessage title="Нічого не знайдено" />
+  if (query.data.items.length === 0) {
+    return <StateMessage title="Нічого не знайдено" text="Змініть пошуковий запит або додайте новий тайтл" />
+  }
 
   const { items, total, page, page_size } = query.data
   return (
@@ -47,6 +50,7 @@ function TitlesTable({ query, onPageChange }: { query: UseQueryResult<TitlePage>
 }
 
 export default function AdminTitlesPage() {
+  useDocumentTitle('Фільми та серіали — Адмінка')
   const { filters, update } = useCatalogFilters()
   const params: TitleSearchParams = { q: filters.q || undefined, sort: 'name', page: filters.page, page_size: ADMIN_PAGE_SIZE }
   const query = useQuery({

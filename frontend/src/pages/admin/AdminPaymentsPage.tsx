@@ -3,10 +3,11 @@ import { errorMessage } from '../../api/errors'
 import { useAdminPayments, usePaymentFilters } from '../../admin/billing'
 import AdminPaymentRow from '../../components/admin/billing/AdminPaymentRow'
 import PaymentStatusFilter from '../../components/admin/billing/PaymentStatusFilter'
-import PageLoader from '../../components/PageLoader'
 import Pagination from '../../components/Pagination'
+import { TableSkeleton } from '../../components/Skeletons'
 import StateMessage from '../../components/StateMessage'
 import type { AdminPaymentPage } from '../../types/adminBilling'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 const HEADERS = ['№', 'Створено', 'Користувач', 'Тариф', 'Сума', 'Статус', 'Дії']
 
@@ -16,7 +17,7 @@ interface PaymentsTableProps {
 }
 
 function PaymentsTable({ query, onPageChange }: PaymentsTableProps) {
-  if (query.isPending) return <PageLoader />
+  if (query.isPending) return <TableSkeleton columns={6} />
   if (query.isError) return <StateMessage tone="error" title="Не вдалося завантажити платежі" text={errorMessage(query.error)} />
   if (query.data.items.length === 0) return <StateMessage title="Платежів з таким статусом немає" />
 
@@ -47,6 +48,7 @@ function PaymentsTable({ query, onPageChange }: PaymentsTableProps) {
 }
 
 export default function AdminPaymentsPage() {
+  useDocumentTitle('Платежі — Адмінка')
   const { filters, update } = usePaymentFilters()
   const query = useAdminPayments(filters)
 

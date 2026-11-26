@@ -8,11 +8,12 @@ import FavoriteButton from '../components/favorites/FavoriteButton'
 import RatingBadge from '../components/catalog/RatingBadge'
 import SeasonList from '../components/catalog/SeasonList'
 import SimilarTitles from '../components/catalog/SimilarTitles'
-import PageLoader from '../components/PageLoader'
+import { TitleDetailsSkeleton } from '../components/Skeletons'
 import WatchButton from '../components/player/WatchButton'
 import StateMessage from '../components/StateMessage'
 import { buttonOutline, chipClass } from '../components/ui'
 import type { TitleDetail } from '../types/catalog'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const KIND_LABEL = { movie: 'Фільм', series: 'Серіал' } as const
 
@@ -31,7 +32,7 @@ function TitleInfo({ title }: { title: TitleDetail }) {
         <p className="text-sm text-muted">
           {KIND_LABEL[title.kind]} · {title.year} · {title.country}
         </p>
-        <h1 className="mt-1 font-display text-4xl font-semibold">{title.name}</h1>
+        <h1 className="mt-1 font-display text-3xl font-semibold break-words sm:text-4xl">{title.name}</h1>
       </div>
       <RatingBadge rating={title.rating} className="text-sm" />
       {title.genres.length > 0 && (
@@ -58,6 +59,7 @@ export default function TitleDetailsPage() {
   const id = Number(useParams().id)
   const valid = Number.isInteger(id) && id > 0
   const query = useQuery({ queryKey: catalogKeys.title(id), queryFn: () => catalogApi.title(id), enabled: valid })
+  useDocumentTitle(query.data?.name)
 
   if (!valid || (query.error instanceof ApiError && query.error.status === 404)) {
     return <StateMessage title="Тайтл не знайдено" text="Можливо, його видалили з каталогу" action={<BackLink />} />
@@ -65,7 +67,7 @@ export default function TitleDetailsPage() {
   if (query.isError) {
     return <StateMessage tone="error" title="Не вдалося завантажити сторінку" text={errorMessage(query.error)} action={<BackLink />} />
   }
-  if (query.isPending) return <PageLoader />
+  if (query.isPending) return <TitleDetailsSkeleton />
 
   const title = query.data
   return (

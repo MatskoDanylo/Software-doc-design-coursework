@@ -1,5 +1,6 @@
 import { errorMessage } from '../../api/errors'
 import { usePayments } from '../../billing/queries'
+import { TableSkeleton } from '../Skeletons'
 import { card } from '../ui'
 import PaymentRow from './PaymentRow'
 
@@ -8,7 +9,7 @@ const HEADERS = ['Дата', 'Тариф', 'Сума', 'Статус', 'Дія']
 function HistoryBody() {
   const payments = usePayments()
 
-  if (payments.isPending) return <p className="text-sm text-muted">Завантаження…</p>
+  if (payments.isPending) return <TableSkeleton rows={3} columns={4} />
   if (payments.isError) return <p className="text-sm text-danger">{errorMessage(payments.error)}</p>
   if (payments.data.length === 0) return <p className="text-sm text-muted">Платежів ще не було</p>
   return (
