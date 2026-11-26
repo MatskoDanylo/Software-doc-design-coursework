@@ -35,7 +35,7 @@ export default function NotificationPanel({ id, inbox }: NotificationPanelProps)
       id={id}
       role="region"
       aria-label="Сповіщення"
-      className="absolute right-0 z-20 mt-2 w-80 overflow-hidden rounded-xl border border-line bg-surface shadow-xl"
+      className="fixed inset-x-4 top-16 z-20 overflow-hidden rounded-xl border border-line bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80"
     >
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <h2 className="text-sm font-semibold">Сповіщення</h2>
