@@ -12,14 +12,21 @@ from app.models import Notification, Payment, Subscription, SubscriptionStatus
 from app.patterns.payment_gateway import MockGatewayAdapter, MockPaymentProvider
 from app.services.notification_service import NotificationService
 from tests.billing_helpers import (
-    checkout, days_left, me, mock_result, notification_kinds, payment, rows, settle,
+    checkout,
+    days_left,
+    me,
+    mock_result,
+    notification_kinds,
+    payment,
+    rows,
+    settle,
 )
 from tests.helpers import assert_error
 from tests.test_playback_proxy import catalog, preroll  # noqa: F401
 
 PREMIUM_PLAN = {
     "code": "premium",
-    "name": "Premium",
+    "name": "Преміум",
     "price": "99.00",
     "currency": "UAH",
     "duration_days": 30,
@@ -42,18 +49,23 @@ def test_plans_are_public_and_described_by_policies(client: TestClient, seeded: 
 def test_checkout_creates_payment_with_policy_price(client: TestClient, buyer: dict[str, str]) -> None:
     body = checkout(client, buyer)
 
-    assert body == {"payment_id": body["payment_id"], "amount": "99.00", "currency": "UAH", "status": "created",
-                    "plan": PREMIUM_PLAN}
+    assert body == {
+        "payment_id": body["payment_id"],
+        "amount": "99.00",
+        "currency": "UAH",
+        "status": "created",
+        "plan": PREMIUM_PLAN,
+    }
     row = payment(body["payment_id"])
     assert (row.status, row.provider, row.paid_at) == ("created", "mock", None)
     assert row.external_id is not None and row.external_id.startswith("inv_")
 
 
 def test_checkout_validation(client: TestClient, buyer: dict[str, str]) -> None:
-    assert_error(client.post("/api/billing/checkout", json={"plan_code": "free"}, headers=buyer),
-                 422, "plan_not_purchasable")
-    assert_error(client.post("/api/billing/checkout", json={"plan_code": "gold"}, headers=buyer),
-                 404, "plan_not_found")
+    assert_error(
+        client.post("/api/billing/checkout", json={"plan_code": "free"}, headers=buyer), 422, "plan_not_purchasable"
+    )
+    assert_error(client.post("/api/billing/checkout", json={"plan_code": "gold"}, headers=buyer), 404, "plan_not_found")
     assert client.post("/api/billing/checkout", json={"plan_code": "premium"}).status_code == 401
     assert rows(Payment) == []
 
@@ -72,7 +84,10 @@ def test_success_activates_premium_and_notifies(client: TestClient, buyer: dict[
 
 
 def test_success_unlocks_1080p_without_ads(
-    client: TestClient, buyer: dict[str, str], catalog: dict[str, int], preroll: None  # noqa: F811
+    client: TestClient,
+    buyer: dict[str, str],
+    catalog: dict[str, int],  # noqa: F811
+    preroll: None,  # noqa: F811
 ) -> None:
     before = client.get(f"/api/titles/{catalog['movie']}/playback", headers=buyer).json()
     assert (before["plan"], before["allowed_heights"], before["ads"]["enabled"]) == ("free", [360, 720], True)

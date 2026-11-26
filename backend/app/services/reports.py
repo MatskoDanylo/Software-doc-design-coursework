@@ -217,7 +217,7 @@ class PopularTitlesReport(ReportGenerator[Sequence[TitleActivity], PopularTitles
             key=lambda g: (-g.viewers, -g.completions, -g.favorites, g.genre),
         )
         return PopularTitlesData(
-            top_titles=ranked[:self.TOP_LIMIT],
+            top_titles=ranked[: self.TOP_LIMIT],
             genres=genre_rows,
             total_views=sum(r.viewers for r in rows),
             total_completions=sum(r.completions for r in rows),
@@ -238,13 +238,26 @@ class PopularTitlesReport(ReportGenerator[Sequence[TitleActivity], PopularTitles
             key="titles",
             title="Топ тайтлів",
             columns=(
-                ReportColumn("rank", "Місце"), ReportColumn("title_id", "ID"), ReportColumn("name", "Назва"),
-                ReportColumn("kind", "Тип"), ReportColumn("genres", "Жанри"), ReportColumn("viewers", "Глядачі"),
-                ReportColumn("completions", "Завершення"), ReportColumn("favorites", "Вибране"),
+                ReportColumn("rank", "Місце"),
+                ReportColumn("title_id", "ID"),
+                ReportColumn("name", "Назва"),
+                ReportColumn("kind", "Тип"),
+                ReportColumn("genres", "Жанри"),
+                ReportColumn("viewers", "Глядачі"),
+                ReportColumn("completions", "Завершення"),
+                ReportColumn("favorites", "Вибране"),
             ),
             rows=[
-                {"rank": rank, "title_id": t.title_id, "name": t.name, "kind": t.kind, "genres": ", ".join(t.genres),
-                 "viewers": t.viewers, "completions": t.completions, "favorites": t.favorites}
+                {
+                    "rank": rank,
+                    "title_id": t.title_id,
+                    "name": t.name,
+                    "kind": t.kind,
+                    "genres": ", ".join(t.genres),
+                    "viewers": t.viewers,
+                    "completions": t.completions,
+                    "favorites": t.favorites,
+                }
                 for rank, t in enumerate(data.top_titles, start=1)
             ],
         )
@@ -252,12 +265,20 @@ class PopularTitlesReport(ReportGenerator[Sequence[TitleActivity], PopularTitles
             key="genres",
             title="Популярні жанри",
             columns=(
-                ReportColumn("genre", "Жанр"), ReportColumn("titles", "Тайтлів"), ReportColumn("viewers", "Глядачі"),
-                ReportColumn("completions", "Завершення"), ReportColumn("favorites", "Вибране"),
+                ReportColumn("genre", "Жанр"),
+                ReportColumn("titles", "Тайтлів"),
+                ReportColumn("viewers", "Глядачі"),
+                ReportColumn("completions", "Завершення"),
+                ReportColumn("favorites", "Вибране"),
             ),
             rows=[
-                {"genre": g.genre, "titles": g.titles, "viewers": g.viewers, "completions": g.completions,
-                 "favorites": g.favorites}
+                {
+                    "genre": g.genre,
+                    "titles": g.titles,
+                    "viewers": g.viewers,
+                    "completions": g.completions,
+                    "favorites": g.favorites,
+                }
                 for g in data.genres
             ],
         )
@@ -356,19 +377,27 @@ class UserActivityReport(ReportGenerator[UserActivityRows, UserActivityData]):
         )
 
     def sections(self, data: UserActivityData, period: Period) -> tuple[ReportSection, ...]:
-        return (ReportSection(
-            key="activity",
-            title="Активність за періодами",
-            columns=(
-                ReportColumn("bucket", "Період"), ReportColumn("registrations", "Реєстрації"),
-                ReportColumn("active_users", "Активні користувачі"), ReportColumn("watch_minutes", "Час перегляду, хв"),
+        return (
+            ReportSection(
+                key="activity",
+                title="Активність за періодами",
+                columns=(
+                    ReportColumn("bucket", "Період"),
+                    ReportColumn("registrations", "Реєстрації"),
+                    ReportColumn("active_users", "Активні користувачі"),
+                    ReportColumn("watch_minutes", "Час перегляду, хв"),
+                ),
+                rows=[
+                    {
+                        "bucket": p.bucket,
+                        "registrations": p.registrations,
+                        "active_users": p.active_users,
+                        "watch_minutes": p.watch_minutes,
+                    }
+                    for p in data.points
+                ],
             ),
-            rows=[
-                {"bucket": p.bucket, "registrations": p.registrations, "active_users": p.active_users,
-                 "watch_minutes": p.watch_minutes}
-                for p in data.points
-            ],
-        ),)
+        )
 
 
 @dataclass(frozen=True)
@@ -439,7 +468,9 @@ class SubscriptionRevenueReport(ReportGenerator[RevenueRows, RevenueData]):
     def aggregate(self, rows: RevenueRows, period: Period) -> RevenueData:
         empty = RevenueBucket(Decimal("0"), 0)
         points = [
-            RevenuePoint(bucket, money(rows.revenue.get(bucket, empty).amount), rows.revenue.get(bucket, empty).payments)
+            RevenuePoint(
+                bucket, money(rows.revenue.get(bucket, empty).amount), rows.revenue.get(bucket, empty).payments
+            )
             for bucket in fill_buckets(period)
         ]
         return RevenueData(
@@ -457,7 +488,7 @@ class SubscriptionRevenueReport(ReportGenerator[RevenueRows, RevenueData]):
             SummaryItem("total_revenue", "Дохід, грн", money(data.total_revenue)),
             SummaryItem("successful_payments", "Успішних платежів", data.successful_payments),
             SummaryItem("paying_users", "Платників", data.paying_users),
-            SummaryItem("active_premium", "Активних Premium зараз", data.active_premium),
+            SummaryItem("active_premium", "Активних Преміум-підписок зараз", data.active_premium),
             SummaryItem("conversion", "Конверсія free → premium, %", percent(data.paying_users, data.registered_users)),
         )
 
@@ -465,8 +496,11 @@ class SubscriptionRevenueReport(ReportGenerator[RevenueRows, RevenueData]):
         revenue = ReportSection(
             key="revenue",
             title="Дохід за періодами",
-            columns=(ReportColumn("bucket", "Період"), ReportColumn("revenue", "Дохід, грн"),
-                     ReportColumn("payments", "Успішні платежі")),
+            columns=(
+                ReportColumn("bucket", "Період"),
+                ReportColumn("revenue", "Дохід, грн"),
+                ReportColumn("payments", "Успішні платежі"),
+            ),
             rows=[{"bucket": p.bucket, "revenue": p.revenue, "payments": p.payments} for p in data.points],
         )
         statuses = ReportSection(

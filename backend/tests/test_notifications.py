@@ -18,16 +18,14 @@ def pending_then_failed(client: TestClient, headers: dict[str, str]) -> None:
     settle(client, headers, payment_id, "failed")
 
 
-def test_inbox_lists_payment_notifications_newest_first(
-    client: TestClient, buyer: dict[str, str]
-) -> None:
+def test_inbox_lists_payment_notifications_newest_first(client: TestClient, buyer: dict[str, str]) -> None:
     pending_then_failed(client, buyer)
 
     body = inbox(client, buyer)
 
     assert body["unread"] == 2
     assert [(n["kind"], n["read"]) for n in body["items"]] == [("payment_failed", False), ("payment_pending", False)]
-    assert body["items"][0]["message"] == "Оплату 99.00 грн за Premium відхилено. Спробуйте ще раз."
+    assert body["items"][0]["message"] == "Оплату 99.00 грн за Преміум відхилено. Спробуйте ще раз."
     assert set(body["items"][0]) == {"id", "kind", "message", "read", "created_at"}
 
 
@@ -71,20 +69,17 @@ def test_read_all_marks_only_own_notifications(
     assert client.post("/api/notifications/read-all", headers=buyer).json() == {"updated": 0}
 
 
-def test_foreign_notification_is_not_found(
-    client: TestClient, buyer: dict[str, str], stranger: dict[str, str]
-) -> None:
+def test_foreign_notification_is_not_found(client: TestClient, buyer: dict[str, str], stranger: dict[str, str]) -> None:
     pending_then_failed(client, buyer)
     notification_id = inbox(client, buyer)["items"][0]["id"]
 
-    assert_error(client.post(f"/api/notifications/{notification_id}/read", headers=stranger),
-                 404, "notification_not_found")
+    assert_error(
+        client.post(f"/api/notifications/{notification_id}/read", headers=stranger), 404, "notification_not_found"
+    )
     assert inbox(client, buyer)["unread"] == 2
 
 
-def test_notifications_require_auth_and_validate_limit(
-    client: TestClient, buyer: dict[str, str]
-) -> None:
+def test_notifications_require_auth_and_validate_limit(client: TestClient, buyer: dict[str, str]) -> None:
     assert client.get("/api/notifications").status_code == 401
     assert client.post("/api/notifications/read-all").status_code == 401
     assert_error(client.get("/api/notifications", params={"limit": 0}, headers=buyer), 422, "validation_error")

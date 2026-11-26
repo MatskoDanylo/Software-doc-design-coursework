@@ -59,14 +59,26 @@ def test_activator_grants_plan_duration_for_the_paid_plan() -> None:
 @pytest.mark.parametrize(
     ("event", "kind", "message"),
     [
-        (PaymentPending(1, 7, "premium", AMOUNT), NotificationKind.PAYMENT_PENDING,
-         "Оплата 99.00 грн за Premium очікує підтвердження банку."),
-        (PaymentFailed(1, 7, "premium", AMOUNT), NotificationKind.PAYMENT_FAILED,
-         "Оплату 99.00 грн за Premium відхилено. Спробуйте ще раз."),
-        (SubscriptionActivated(7, 3, "premium", datetime(2026, 12, 24, 9, 30, tzinfo=UTC)),
-         NotificationKind.SUBSCRIPTION_ACTIVATED, "Підписку Premium активовано до 24.12.2026."),
-        (SubscriptionActivated(7, 3, "premium", None), NotificationKind.SUBSCRIPTION_ACTIVATED,
-         "Підписку Premium активовано."),
+        (
+            PaymentPending(1, 7, "premium", AMOUNT),
+            NotificationKind.PAYMENT_PENDING,
+            "Оплата 99.00 грн за Преміум очікує підтвердження банку.",
+        ),
+        (
+            PaymentFailed(1, 7, "premium", AMOUNT),
+            NotificationKind.PAYMENT_FAILED,
+            "Оплату 99.00 грн за Преміум відхилено. Спробуйте ще раз.",
+        ),
+        (
+            SubscriptionActivated(7, 3, "premium", datetime(2026, 12, 24, 9, 30, tzinfo=UTC)),
+            NotificationKind.SUBSCRIPTION_ACTIVATED,
+            "Підписку Преміум активовано до 24.12.2026.",
+        ),
+        (
+            SubscriptionActivated(7, 3, "premium", None),
+            NotificationKind.SUBSCRIPTION_ACTIVATED,
+            "Підписку Преміум активовано.",
+        ),
     ],
 )
 def test_notification_messages(

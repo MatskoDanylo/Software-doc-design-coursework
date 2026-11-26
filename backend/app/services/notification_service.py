@@ -3,10 +3,12 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session
 
 from app.core.events import PaymentFailed, PaymentPending, SubscriptionActivated
-from app.models import Notification, NotificationKind
+from app.models import Notification, NotificationKind, PlanCode
 from app.services.ports import NotificationStore
 
 type NotifiableEvent = PaymentPending | PaymentFailed | SubscriptionActivated
+
+PLAN_LABELS: dict[str, str] = {PlanCode.FREE: "Безкоштовний", PlanCode.PREMIUM: "Преміум"}
 
 
 class NotificationService:
@@ -19,7 +21,7 @@ class NotificationService:
 
 
 def render(event: NotifiableEvent) -> tuple[NotificationKind, str]:
-    plan = event.plan_code.title()
+    plan = PLAN_LABELS.get(event.plan_code, event.plan_code)
     match event:
         case PaymentPending(amount=amount):
             return NotificationKind.PAYMENT_PENDING, f"Оплата {amount} грн за {plan} очікує підтвердження банку."

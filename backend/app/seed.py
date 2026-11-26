@@ -18,8 +18,20 @@ from app.schemas.common import normalize_email
 from app.services.users import UserService
 
 PLANS: tuple[dict[str, Any], ...] = (
-    {"code": PlanCode.FREE, "name": "Free", "price_month": Decimal("0.00"), "ads_enabled": True, "max_height": 720},
-    {"code": PlanCode.PREMIUM, "name": "Premium", "price_month": Decimal("99.00"), "ads_enabled": False, "max_height": 1080},
+    {
+        "code": PlanCode.FREE,
+        "name": "Безкоштовний",
+        "price_month": Decimal("0.00"),
+        "ads_enabled": True,
+        "max_height": 720,
+    },
+    {
+        "code": PlanCode.PREMIUM,
+        "name": "Преміум",
+        "price_month": Decimal("99.00"),
+        "ads_enabled": False,
+        "max_height": 1080,
+    },
 )
 
 
@@ -112,8 +124,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             f"Demo activity: {activity.users} users, {activity.history} history entries, "
             f"{activity.favorites} favorites, payments: {payments}, active Premium {activity.active_premium}"
         )
-        print(f"Demo login: {EMAIL_TEMPLATE.format(1)} ... {EMAIL_TEMPLATE.format(activity.users)}, "
-              f"password {DEMO_PASSWORD}")
+        print(
+            f"Demo login: {EMAIL_TEMPLATE.format(1)} ... {EMAIL_TEMPLATE.format(activity.users)}, "
+            f"password {DEMO_PASSWORD}"
+        )
 
 
 if __name__ == "__main__":
