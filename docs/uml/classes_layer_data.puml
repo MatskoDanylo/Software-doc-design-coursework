@@ -1,0 +1,201 @@
+@startuml classes_layer_data
+!include _style.iuml
+set separator none
+hide empty members
+left to right direction
+skinparam nodesep 16
+skinparam ranksep 60
+skinparam packageStyle frame
+
+title Шари сервісів, портів і даних (DIP)\nСервіс залежить від протоколів services/ports.py; репозиторій їх реалізує; api/deps.py з'єднує одне з одним
+
+package "services — бізнес-логіка (атрибути = порти з конструктора)" as S {
+  class CatalogService <<Director>> $BUILDER {
+    titles: TitleReader
+    genres: GenreReader
+    favorites: FavoriteReader
+  }
+  class AdminCatalogService {
+    titles: TitleStore
+    genres: GenreStore
+    seasons: SeasonStore
+    episodes: EpisodeStore
+    storage: FileStorage
+  }
+  class PosterService {
+    titles: EntityStore[Title]
+    storage: FileStorage
+  }
+  class VideoUploadService {
+    titles: EntityStore[Title]
+    episodes: EntityStore[Episode]
+    assets: VideoAssetStore
+    store: VideoFileStore
+  }
+  class VideoProcessingService {
+    transaction: AssetTransaction
+    transcoder: VideoTranscoder
+    store: VideoFileStore
+  }
+  class PlaybackTargetResolver {
+    titles: EntityStore[Title]
+    episodes: EntityStore[Episode]
+  }
+  class RealPlaybackService <<RealSubject>> $PROXY {
+    targets: PlaybackTargetResolver
+    assets: VideoAssetStore
+    manifests: ManifestSource
+    history: WatchHistoryStore
+  }
+  class PlaybackProxy <<Proxy>> $PROXY {
+    real: PlaybackService
+    policies: PlaybackPolicyProvider
+    ads: AdProvider
+  }
+  class FavoriteService {
+    favorites: FavoriteStore
+    titles: EntityStore[Title]
+  }
+  class HistoryService {
+    history: WatchHistoryStore
+    targets: PlaybackTargetResolver
+    favorites: FavoriteReader
+    events: EventPublisher
+  }
+  class SubscriptionService {
+    subscriptions: SubscriptionStore
+    plans: PlanStore
+    plan_policies: PlanPolicyRegistry
+    events: EventPublisher
+  }
+  class BillingService {
+    payments: PaymentStore
+    plans: PlanStore
+    gateway: PaymentGateway
+    simulator: PaymentSimulator
+    plan_policies: PlanPolicyRegistry
+    current_plans: CurrentPlanReader
+    events: EventPublisher
+  }
+  class NotificationInbox {
+    notifications: NotificationStore
+  }
+  class NotificationService <<ConcreteObserver>> $OBSERVER {
+    notifications: (Session) -> NotificationStore
+  }
+  class TitleStatsUpdater <<ConcreteObserver>> $OBSERVER {
+    stats: (Session) -> CompletionRecorder
+  }
+  class RecommendationService <<Context>> $STRATEGY {
+    registry: StrategyRegistry
+    source: RecommendationSource
+    taste: UserTasteReader
+    titles: TitleBatchReader
+    favorites: FavoriteReader
+    config: RecommendationConfigProvider
+  }
+  class SettingsService {
+    store: SettingsStore
+  }
+  class ReportService {
+    generators: ReportGenerator[*]
+    settings: ReportSettingsProvider
+  }
+  class DashboardService {
+    source: DashboardSource
+  }
+  class UserService {
+    users: UserRepository
+  }
+  class AuthService {
+    users: UserRepository
+    user_service: UserService
+  }
+}
+
+package "repositories — доступ до PostgreSQL через SQLAlchemy" as R {
+  class "SqlAlchemyRepository[ModelT]" as Base {
+    session: Session
+    +get(entity_id): ModelT | None
+    +add(entity): ModelT
+    +save(entity): ModelT
+    +delete(entity)
+  }
+  class TitleRepository <<SqlAlchemyRepository[Title]>> {
+    реалізує: TitleReader, TitleStore,
+    TitleBatchReader, EntityStore[Title]
+  }
+  class GenreRepository <<SqlAlchemyRepository[Genre]>> {
+    реалізує: GenreReader, GenreStore
+  }
+  class SeasonRepository <<SqlAlchemyRepository[Season]>> {
+    реалізує: SeasonStore
+  }
+  class EpisodeRepository <<SqlAlchemyRepository[Episode]>> {
+    реалізує: EpisodeStore, EntityStore[Episode]
+  }
+  class VideoAssetRepository <<SqlAlchemyRepository[VideoAsset]>> {
+    реалізує: VideoAssetStore
+  }
+  class WatchHistoryRepository <<SqlAlchemyRepository[WatchHistory]>> {
+    реалізує: WatchHistoryStore
+  }
+  class FavoriteRepository {
+    реалізує: FavoriteStore, FavoriteReader
+  }
+  class PlanRepository <<SqlAlchemyRepository[Plan]>> {
+    реалізує: PlanStore
+  }
+  class SubscriptionRepository <<SqlAlchemyRepository[Subscription]>> {
+    реалізує: SubscriptionStore
+  }
+  class PaymentRepository <<SqlAlchemyRepository[Payment]>> {
+    реалізує: PaymentStore
+  }
+  class NotificationRepository <<SqlAlchemyRepository[Notification]>> {
+    реалізує: NotificationStore
+  }
+  class UserRepository <<SqlAlchemyRepository[User]>>
+  note as NBase
+  Стереотип «SqlAlchemyRepository[T]» означає
+  успадкування від цього базового класу.
+  Репозиторії без стереотипу будують
+  власні агрегатні запити (рекомендації, звіти,
+  статистика, налаштування, Вибране).
+end note
+  class TitleStatsRepository {
+    реалізує: TitleStatsStore, CompletionRecorder
+  }
+  class SettingsRepository {
+    реалізує: SettingsStore
+  }
+  class RecommendationRepository {
+    реалізує: RecommendationSource, UserTasteReader
+  }
+  class ReportRepository {
+    реалізує: ReportsSource, DashboardSource
+  }
+}
+
+package "інфраструктура — core/storage.py, services/hls_transcoder.py" as I {
+  class LocalMediaStorage {
+    реалізує: FileStorage
+  }
+  class LocalVideoStore {
+    реалізує: VideoFileStore
+  }
+  class LocalManifestSource {
+    реалізує: ManifestSource
+  }
+  class LocalAdProvider {
+    реалізує: AdProvider
+  }
+  class HlsTranscoder <<ffmpeg>> {
+    реалізує: VideoTranscoder
+  }
+}
+
+S ..> R : порти services/ports.py
+S ..> I : FileStorage, VideoFileStore,\nManifestSource, AdProvider,\nVideoTranscoder
+
+@enduml

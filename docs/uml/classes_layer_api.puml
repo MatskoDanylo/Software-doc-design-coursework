@@ -1,0 +1,156 @@
+@startuml classes_layer_api
+!include _style.iuml
+set separator none
+hide empty members
+left to right direction
+skinparam nodesep 14
+skinparam ranksep 90
+skinparam packageStyle frame
+
+title Шар API: роутери FastAPI (контролери, GRASP Controller) → сервіси
+
+package "api/routes — публічні (/api)" {
+  class "auth" as R_auth <<router>> {
+    POST /auth/register
+    POST /auth/login
+    POST /auth/refresh
+  }
+  class "users" as R_users <<router>> {
+    GET /users/me
+    PATCH /users/me
+  }
+  class "catalog" as R_catalog <<router>> {
+    GET /titles
+    GET /titles/{title_id}
+    GET /genres
+    GET /countries
+  }
+  class "recommendations" as R_recs <<router>> {
+    GET /recommendations
+    GET /titles/{title_id}/similar
+  }
+  class "playback" as R_playback <<router>> {
+    GET /titles/{title_id}/playback
+    GET /playback/{asset_id}/master.m3u8
+  }
+  class "favorites" as R_fav <<router>> {
+    GET /favorites
+    POST /favorites/{title_id}
+    DELETE /favorites/{title_id}
+  }
+  class "history" as R_history <<router>> {
+    PUT /history/progress
+    GET /history
+  }
+  class "plans" as R_plans <<router>> {
+    GET /plans
+  }
+  class "billing" as R_billing <<router>> {
+    POST /billing/checkout
+    POST /billing/payments/{id}/mock-result
+    GET /billing/payments
+  }
+  class "subscriptions" as R_subs <<router>> {
+    POST /subscriptions/cancel
+  }
+  class "notifications" as R_notif <<router>> {
+    GET /notifications
+    POST /notifications/read-all
+    POST /notifications/{id}/read
+  }
+}
+
+package "api/routes — адміністратор (/api/admin, require_admin)" {
+  class "admin" as R_admin <<router>> {
+    GET /admin/users
+  }
+  class "admin_catalog" as R_acat <<router>> {
+    POST|PATCH|DELETE /admin/titles
+    POST /admin/titles/{id}/poster
+    POST|PATCH|DELETE /admin/genres
+    POST|PATCH|DELETE /admin/seasons
+    POST|PATCH|DELETE /admin/episodes
+  }
+  class "admin_video" as R_avideo <<router>> {
+    POST /admin/titles/{id}/video
+    POST /admin/episodes/{id}/video
+    GET /admin/titles/{id}/video
+    GET /admin/episodes/{id}/video
+    GET /admin/video-assets/{id}
+  }
+  class "admin_billing" as R_abill <<router>> {
+    GET /admin/payments
+    POST /admin/payments/{id}/resolve
+    POST /admin/users/{id}/subscription
+  }
+  class "admin_settings" as R_aset <<router>> {
+    GET /admin/settings
+    PUT /admin/settings
+  }
+  class "admin_reports" as R_arep <<router>> {
+    GET /admin/reports/{kind}
+    GET /admin/dashboard
+  }
+}
+
+package "api/deps.py — композиція залежностей (Depends)" {
+  class deps <<module>> {
+    get_current_user() / require_admin()
+    get_playback_service(): PlaybackService
+    get_billing_service(): BillingService
+    get_event_bus(): EventBus
+    get_plan_policies(): PlanPolicyRegistry
+    get_strategy_registry(): StrategyRegistry
+  }
+}
+
+package "services" {
+  class AuthService
+  class UserService
+  class CatalogService <<Director>> $BUILDER
+  class RecommendationService <<Context>> $STRATEGY
+  abstract class PlaybackService <<Subject>> $PROXY
+  class FavoriteService
+  class HistoryService
+  class BillingService
+  class SubscriptionService
+  class NotificationInbox
+  class AdminCatalogService
+  class PosterService
+  class VideoUploadService
+  class VideoProcessingService
+  class SettingsService
+  class ReportService
+  class DashboardService
+  class CsvReportExporter
+}
+
+R_auth --> AuthService
+R_users --> UserService
+R_users --> SubscriptionService
+R_catalog --> CatalogService
+R_recs --> RecommendationService
+R_playback --> PlaybackService
+R_fav --> FavoriteService
+R_history --> HistoryService
+R_plans --> BillingService
+R_billing --> BillingService
+R_subs --> SubscriptionService
+R_notif --> NotificationInbox
+
+R_admin --> UserService
+R_acat --> AdminCatalogService
+R_acat --> PosterService
+R_avideo --> VideoUploadService
+R_avideo --> VideoProcessingService : BackgroundTasks
+R_abill --> BillingService
+R_abill --> SubscriptionService
+R_abill --> UserService
+R_aset --> SettingsService
+R_arep --> ReportService
+R_arep --> DashboardService
+R_arep --> CsvReportExporter
+
+note "Роутери не створюють сервіси самі:\nкожен сервіс збирає функція get_*_service у deps.py\nі передає через Depends (Dependency Injection).\nДля відтворення deps повертає PlaybackProxy,\nобгорнутий навколо RealPlaybackService." as N1
+deps .. N1
+@enduml
