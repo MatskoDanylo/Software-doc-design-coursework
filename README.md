@@ -22,7 +22,7 @@ Template Method): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 docker compose up -d db
 cd backend
 python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pip install -r requirements-dev.txt
 cp .env.example .env
 .venv/Scripts/python -m alembic upgrade head
 .venv/Scripts/python -m app.seed --demo-activity
@@ -49,14 +49,31 @@ cp .env.example .env
 - адміністратор: `ADMIN_EMAIL` / `ADMIN_PASSWORD` з `.env` (за замовчуванням `admin@example.com` / `admin12345`);
 - демо-користувачі: `demo.user01@example.com` … `demo.user40@example.com`, пароль `demo12345`.
 
-## Тести
+## Тести і перевірки якості
+
+`requirements.txt` містить лише залежності застосунку (їх ставить Docker-образ), `requirements-dev.txt` додає
+pytest, pytest-cov, ruff і mypy.
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest
+.venv/Scripts/python -m pytest --cov=app --cov-report=term-missing
+.venv/Scripts/python -m ruff check .
+.venv/Scripts/python -m ruff format --check .
+.venv/Scripts/python -m mypy
 ```
 
 Тести використовують окрему базу `cinema_test` (створюється автоматично в тому ж контейнері PostgreSQL).
+Налаштування ruff, mypy (strict для `app/patterns` і `app/services`) і coverage — у `backend/pyproject.toml`.
+
+```bash
+cd frontend
+npm run lint
+npm run typecheck
+npm run test:coverage
+npm run build
+```
+
+Підсумкові цифри — у [docs/QUALITY.md](docs/QUALITY.md), ручний чекліст — у [docs/MANUAL_TEST.md](docs/MANUAL_TEST.md).
 
 ## Frontend
 
