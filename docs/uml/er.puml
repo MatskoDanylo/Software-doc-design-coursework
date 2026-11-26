@@ -1,0 +1,215 @@
+@startuml er
+!include _style.iuml
+hide circle
+hide empty members
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 55
+skinparam ClassBackgroundColor #FFFFFF
+skinparam ClassHeaderBackgroundColor #E8EEF7
+
+title Фізична модель БД PostgreSQL (alembic/versions, app/models)
+
+legend top right
+  <b>Позначення</b>
+  PK — первинний ключ, FK — зовнішній ключ
+  UQ — унікальне обмеження, IX — індекс
+  Зірочка * перед полем — NOT NULL, без неї — NULL
+  Усі FK мають ON DELETE CASCADE, крім
+  subscriptions.plan_id і payments.plan_id (NO ACTION)
+  Імена обмежень за naming convention
+  з core/db.py: pk_*, fk_*, uq_*, ix_*, ck_*
+endlegend
+
+entity users {
+  * id : integer <<PK>>
+  --
+  * email : varchar(255) <<UQ ix_users_email>>
+  * password_hash : varchar(255)
+  * role : varchar(20)
+  * created_at : timestamptz = now()
+}
+
+entity profiles {
+  * user_id : integer <<PK, FK>>
+  --
+  * display_name : varchar(100)
+  avatar_url : varchar(500)
+  country : varchar(100)
+}
+
+entity notifications {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK>>
+  * kind : varchar(40)
+  * message : varchar(500)
+  * read : boolean
+  * created_at : timestamptz = now()
+  ..
+  IX (user_id, created_at)
+}
+
+entity plans {
+  * id : integer <<PK>>
+  --
+  * code : varchar(30) <<UQ>>
+  * name : varchar(80)
+  * price_month : numeric(10,2)
+  * ads_enabled : boolean
+  * max_height : integer
+}
+
+entity subscriptions {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK, IX>>
+  * plan_id : integer <<FK>>
+  * status : varchar(20)
+  * started_at : timestamptz = now()
+  expires_at : timestamptz
+}
+
+entity payments {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK, IX>>
+  * plan_id : integer <<FK>>
+  * amount : numeric(10,2)
+  * status : varchar(20)
+  * provider : varchar(30)
+  external_id : varchar(100)
+  * created_at : timestamptz = now()
+  paid_at : timestamptz
+  ..
+  IX (status, created_at)
+}
+
+entity titles {
+  * id : integer <<PK>>
+  --
+  * kind : varchar(10) <<IX>>
+  * name : varchar(255) <<IX>>
+  * description : text
+  * year : integer <<IX>>
+  * country : varchar(100) <<IX>>
+  * rating : float
+  poster_url : varchar(500)
+}
+
+entity genres {
+  * id : integer <<PK>>
+  --
+  * name : varchar(80) <<UQ>>
+}
+
+entity title_genres {
+  * title_id : integer <<PK, FK>>
+  * genre_id : integer <<PK, FK>>
+}
+
+entity seasons {
+  * id : integer <<PK>>
+  --
+  * title_id : integer <<FK>>
+  * number : integer
+  ..
+  UQ (title_id, number)
+}
+
+entity episodes {
+  * id : integer <<PK>>
+  --
+  * season_id : integer <<FK>>
+  * number : integer
+  * name : varchar(255)
+  ..
+  UQ (season_id, number)
+}
+
+entity video_assets {
+  * id : integer <<PK>>
+  --
+  title_id : integer <<FK, UQ>>
+  episode_id : integer <<FK, UQ>>
+  hls_path : varchar(500)
+  * status : varchar(20)
+  error_message : text
+  duration_sec : integer
+  ..
+  CK single_owner:
+  (title_id IS NULL) <> (episode_id IS NULL)
+}
+
+entity watch_history {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK, IX>>
+  * title_id : integer <<FK, IX>>
+  episode_id : integer <<FK>>
+  * progress_sec : integer
+  * finished : boolean
+  * last_watched : timestamptz = now()
+  ..
+  UQ (user_id, title_id, episode_id)
+  NULLS NOT DISTINCT
+  IX (user_id, last_watched)
+}
+
+entity favorites {
+  * user_id : integer <<PK, FK>>
+  * title_id : integer <<PK, FK>>
+  --
+  * added_at : timestamptz = now()
+}
+
+entity title_stats {
+  * title_id : integer <<PK, FK>>
+  --
+  * unique_viewers : integer
+  * completions : integer
+  last_watched_at : timestamptz <<IX>>
+}
+
+entity title_viewers {
+  * title_id : integer <<PK, FK>>
+  * user_id : integer <<PK, FK>>
+  --
+  * first_finished_at : timestamptz = now()
+}
+
+entity app_settings {
+  * key : varchar(100) <<PK>>
+  --
+  value : jsonb
+  * updated_at : timestamptz = now()
+}
+
+' ---- users
+users ||--o| profiles
+users ||--o{ notifications
+users ||--o{ subscriptions
+users ||--o{ payments
+users ||--o{ watch_history
+users ||--o{ favorites
+users ||--o{ title_viewers
+
+' ---- plans: план з підписками чи платежами видалити не можна
+plans ||--o{ subscriptions
+plans ||--o{ payments
+
+' ---- catalog
+titles ||--o{ title_genres
+genres ||--o{ title_genres
+titles ||--o{ seasons
+seasons ||--o{ episodes
+titles |o--o| video_assets
+episodes |o--o| video_assets
+
+' ---- activity
+titles ||--o{ watch_history
+episodes |o--o{ watch_history
+titles ||--o{ favorites
+titles ||--o| title_stats
+titles ||--o{ title_viewers
+@enduml
