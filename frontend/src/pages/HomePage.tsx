@@ -3,6 +3,7 @@ import ContinueWatchingRow from '../components/history/ContinueWatchingRow'
 import GuestHero from '../components/home/GuestHero'
 import PopularRow from '../components/home/PopularRow'
 import RecommendedRow from '../components/home/RecommendedRow'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 function PersonalRows() {
   return (
@@ -15,6 +16,7 @@ function PersonalRows() {
 }
 
 export default function HomePage() {
+  useDocumentTitle(null)
   const { status } = useAuth()
 
   return (

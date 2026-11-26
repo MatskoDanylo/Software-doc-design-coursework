@@ -5,8 +5,10 @@ import { useCatalogFilters } from '../catalog/useCatalogFilters'
 import CatalogResults from '../components/catalog/CatalogResults'
 import FilterPanel from '../components/catalog/FilterPanel'
 import SortSelect from '../components/catalog/SortSelect'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export default function CatalogPage() {
+  useDocumentTitle('Каталог')
   const { filters, update, reset } = useCatalogFilters()
   const params = toSearchParams(filters)
   const query = useQuery({

@@ -4,8 +4,10 @@ import ReportView from '../../components/admin/reports/ReportView'
 import { REPORT_PANEL_ID, reportTabId, tabById } from '../../reports/filters'
 import { useReport } from '../../reports/queries'
 import { useReportFilters } from '../../reports/useReportFilters'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 export default function AdminReportsPage() {
+  useDocumentTitle('Звіти — Адмінка')
   const { filters, query, update } = useReportFilters()
   const tab = tabById(filters.tab)
   const report = useReport(tab.kind, query)

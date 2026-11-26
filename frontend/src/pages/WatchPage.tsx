@@ -14,6 +14,7 @@ import { buttonOutline, textLink } from '../components/ui'
 import { episodeLabel, firstEpisode, flattenEpisodes, nextEpisode, watchPath, type EpisodeRef } from '../player/episodes'
 import RedirectToLogin from '../routes/RedirectToLogin'
 import type { TitleDetail } from '../types/catalog'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 function parseId(value: string | null): number | null {
   const id = Number(value)
@@ -88,6 +89,7 @@ export default function WatchPage() {
   const episodeId = parseId(params.get('episode'))
   const valid = Number.isInteger(titleId) && titleId > 0
   const query = useQuery({ queryKey: catalogKeys.title(titleId), queryFn: () => catalogApi.title(titleId), enabled: valid })
+  useDocumentTitle(query.data ? `${query.data.name} — перегляд` : 'Перегляд')
   const catalogLink = <BackLink to="/catalog" label="До каталогу" />
 
   if (!valid || (query.error instanceof ApiError && query.error.status === 404)) {

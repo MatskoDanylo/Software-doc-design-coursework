@@ -4,8 +4,10 @@ import SettingsForm from '../../components/admin/settings/SettingsForm'
 import PageLoader from '../../components/PageLoader'
 import StateMessage from '../../components/StateMessage'
 import { formatDateTime } from '../../format/datetime'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 export default function AdminSettingsPage() {
+  useDocumentTitle('Налаштування — Адмінка')
   const query = useAppSettings()
 
   return (
