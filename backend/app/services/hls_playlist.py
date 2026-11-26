@@ -43,7 +43,7 @@ class MasterPlaylist:
         for index, line in enumerate(lines):
             if not line.startswith(_STREAM_INF):
                 continue
-            uri = next((u for u in lines[index + 1:] if not u.startswith("#")), None)
+            uri = next((u for u in lines[index + 1 :] if not u.startswith("#")), None)
             if uri is None:
                 raise PlaylistError("Variant without URI")
             variants.append(_parse_variant(line.removeprefix(_STREAM_INF), uri))
@@ -58,9 +58,7 @@ class MasterPlaylist:
 
     def with_uri_prefix(self, prefix: str) -> Self:
         base = prefix.rstrip("/")
-        return type(self)(tuple(
-            v if _is_absolute(v.uri) else replace(v, uri=f"{base}/{v.uri}") for v in self.variants
-        ))
+        return type(self)(tuple(v if _is_absolute(v.uri) else replace(v, uri=f"{base}/{v.uri}") for v in self.variants))
 
     def render(self) -> str:
         header = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-INDEPENDENT-SEGMENTS"]

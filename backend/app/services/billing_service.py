@@ -68,10 +68,15 @@ class BillingService:
                 code="plan_change_not_allowed",
             )
         quote = creator.quote(plan)
-        payment = self.payments.add(Payment(
-            user_id=user.id, plan=plan, amount=quote.price, status=PaymentStatus.CREATED,
-            provider=self.gateway.provider_name,
-        ))
+        payment = self.payments.add(
+            Payment(
+                user_id=user.id,
+                plan=plan,
+                amount=quote.price,
+                status=PaymentStatus.CREATED,
+                provider=self.gateway.provider_name,
+            )
+        )
         self._open_invoice(payment)
         return Checkout(payment=payment, quote=quote)
 
@@ -83,8 +88,9 @@ class BillingService:
 
     def resolve(self, payment_id: int, outcome: PaymentOutcome) -> Payment:
         if outcome == PaymentOutcome.PENDING:
-            raise UnprocessableError("A pending payment can only be resolved as success or failed",
-                                     code="invalid_outcome")
+            raise UnprocessableError(
+                "A pending payment can only be resolved as success or failed", code="invalid_outcome"
+            )
         payment = self.payments.get_for_update(payment_id)
         if payment is None:
             raise NotFoundError("Payment not found", code="payment_not_found")
@@ -95,9 +101,7 @@ class BillingService:
     def history(self, user: User) -> Sequence[Payment]:
         return self.payments.list_for_user(user.id)
 
-    def payments_page(
-        self, status: PaymentStatus | None, page: int, page_size: int
-    ) -> tuple[Sequence[Payment], int]:
+    def payments_page(self, status: PaymentStatus | None, page: int, page_size: int) -> tuple[Sequence[Payment], int]:
         return self.payments.page(status, page, page_size)
 
     def _settle(self, payment: Payment, outcome: PaymentOutcome) -> Payment:
@@ -137,7 +141,9 @@ class BillingService:
         if status == PaymentStatus.SUCCESS:
             payment.paid_at = self.clock()
         self.payments.save(payment)
-        self.events.publish(event_type(
-            payment_id=payment.id, user_id=payment.user_id, plan_code=payment.plan.code, amount=payment.amount
-        ))
+        self.events.publish(
+            event_type(
+                payment_id=payment.id, user_id=payment.user_id, plan_code=payment.plan.code, amount=payment.amount
+            )
+        )
         return payment

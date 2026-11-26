@@ -57,7 +57,9 @@ def test_login_returns_token_pair(client: TestClient) -> None:
     assert body["access_token"] and body["refresh_token"]
 
 
-@pytest.mark.parametrize(("email", "password"), [("neo@example.com", "wrong-password"), ("ghost@example.com", PASSWORD)])
+@pytest.mark.parametrize(
+    ("email", "password"), [("neo@example.com", "wrong-password"), ("ghost@example.com", PASSWORD)]
+)
 def test_login_rejects_invalid_credentials(client: TestClient, email: str, password: str) -> None:
     register(client, "neo@example.com")
 
@@ -106,4 +108,6 @@ def test_token_of_deleted_user_is_rejected(client: TestClient) -> None:
         session.execute(delete(User).where(User.email == "neo@example.com"))
 
     assert_error(client.get("/api/users/me", headers=bearer(tokens["access_token"])), 401, "invalid_token")
-    assert_error(client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}), 401, "invalid_token")
+    assert_error(
+        client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}), 401, "invalid_token"
+    )

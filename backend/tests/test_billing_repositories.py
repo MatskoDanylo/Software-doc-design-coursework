@@ -25,8 +25,13 @@ def add_payments(session: Session, user_id: int, statuses: list[PaymentStatus]) 
     premium = PlanRepository(session).get_by_code(PlanCode.PREMIUM)
     assert premium is not None
     payments = [
-        Payment(user_id=user_id, plan_id=premium.id, amount=Decimal("99.00"), status=status,
-                created_at=T0 + timedelta(minutes=i))
+        Payment(
+            user_id=user_id,
+            plan_id=premium.id,
+            amount=Decimal("99.00"),
+            status=status,
+            created_at=T0 + timedelta(minutes=i),
+        )
         for i, status in enumerate(statuses)
     ]
     session.add_all(payments)
@@ -36,8 +41,13 @@ def add_payments(session: Session, user_id: int, statuses: list[PaymentStatus]) 
 
 def add_notifications(session: Session, user_id: int, count: int, read: bool = False) -> list[Notification]:
     items = [
-        Notification(user_id=user_id, kind=NotificationKind.PAYMENT_PENDING, message=f"#{i}", read=read,
-                     created_at=T0 + timedelta(minutes=i))
+        Notification(
+            user_id=user_id,
+            kind=NotificationKind.PAYMENT_PENDING,
+            message=f"#{i}",
+            read=read,
+            created_at=T0 + timedelta(minutes=i),
+        )
         for i in range(count)
     ]
     session.add_all(items)

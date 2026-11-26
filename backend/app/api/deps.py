@@ -11,7 +11,12 @@ from app.core.db import get_db
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.events import EventBus
 from app.core.storage import (
-    FileStorage, LocalAdProvider, LocalManifestSource, LocalMediaStorage, LocalVideoStore, VideoFileStore,
+    FileStorage,
+    LocalAdProvider,
+    LocalManifestSource,
+    LocalMediaStorage,
+    LocalVideoStore,
+    VideoFileStore,
 )
 from app.event_wiring import create_event_bus
 from app.models import Role, User
@@ -40,8 +45,8 @@ from app.services.catalog_service import CatalogService
 from app.services.dashboard_service import DashboardService
 from app.services.favorite_service import FavoriteService
 from app.services.history_service import HistoryService
-from app.services.notification_inbox import NotificationInbox
 from app.services.hls_transcoder import HlsTranscoder, VideoTranscoder
+from app.services.notification_inbox import NotificationInbox
 from app.services.playback_target import PlaybackTargetResolver
 from app.services.poster_service import PosterService
 from app.services.recommendation_service import RecommendationConfigProvider, RecommendationService

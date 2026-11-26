@@ -16,12 +16,14 @@ class UserService:
         email = normalize_email(email)
         if self.users.get_by_email(email) is not None:
             raise ConflictError("Email is already registered", code="email_taken")
-        return self.users.add(User(
-            email=email,
-            password_hash=hash_password(password),
-            role=role,
-            profile=Profile(display_name=display_name or email.split("@")[0]),
-        ))
+        return self.users.add(
+            User(
+                email=email,
+                password_hash=hash_password(password),
+                role=role,
+                profile=Profile(display_name=display_name or email.split("@")[0]),
+            )
+        )
 
     def get(self, user_id: int) -> User:
         user = self.users.get(user_id)

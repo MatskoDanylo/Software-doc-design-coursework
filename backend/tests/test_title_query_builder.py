@@ -17,12 +17,28 @@ ALL = ["The Matrix", "Amelie", "Dark", "Inception", "100% Love", "Taxi"]
 def session() -> Iterator[Session]:
     with SessionLocal() as session:
         drama, comedy, scifi = (make_genre(session, n) for n in ("Drama", "Comedy", "Sci-Fi"))
-        make_title(session, "The Matrix", [scifi], year=1999, rating=8.7,
-                   description="A hacker learns the truth about reality")
-        make_title(session, "Amelie", [comedy, drama], year=2001, country="France", rating=8.3,
-                   description="A shy waitress decides to change lives")
-        make_title(session, "Dark", [scifi, drama], kind=TitleKind.SERIES.value, year=2017, country="Germany",
-                   rating=8.7, description="Time travel mystery in a small town")
+        make_title(
+            session, "The Matrix", [scifi], year=1999, rating=8.7, description="A hacker learns the truth about reality"
+        )
+        make_title(
+            session,
+            "Amelie",
+            [comedy, drama],
+            year=2001,
+            country="France",
+            rating=8.3,
+            description="A shy waitress decides to change lives",
+        )
+        make_title(
+            session,
+            "Dark",
+            [scifi, drama],
+            kind=TitleKind.SERIES.value,
+            year=2017,
+            country="Germany",
+            rating=8.7,
+            description="Time travel mystery in a small town",
+        )
         make_title(session, "Inception", [scifi], year=2010, rating=8.8, description="Dreams within dreams")
         make_title(session, "100% Love", [comedy], year=2011, country="India", rating=5.5)
         make_title(session, "Taxi", [comedy], year=1998, country="France", rating=7.0)
@@ -52,10 +68,13 @@ def test_without_filters_returns_everything_in_insertion_order(session: Session)
 def test_unset_parameters_are_ignored(session: Session) -> None:
     builder = (
         TitleQueryBuilder()
-        .with_text(None).with_text("   ")
-        .with_genres(None).with_genres([])
+        .with_text(None)
+        .with_text("   ")
+        .with_genres(None)
+        .with_genres([])
         .with_year_range()
-        .with_country(None).with_country("")
+        .with_country(None)
+        .with_country("")
         .with_kind(None)
         .with_min_rating(None)
         .sort_by(None)

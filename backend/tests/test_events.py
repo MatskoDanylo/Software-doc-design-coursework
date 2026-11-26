@@ -51,8 +51,9 @@ class Republisher:
 
     def handle(self, event: PaymentSucceeded, session: Session) -> None:
         self.log.append(("activator", event))
-        self.bus.publish(SubscriptionActivated(user_id=event.user_id, subscription_id=1, plan_code="premium",
-                                               expires_at=None))
+        self.bus.publish(
+            SubscriptionActivated(user_id=event.user_id, subscription_id=1, plan_code="premium", expires_at=None)
+        )
 
 
 class SelfRemoving:
@@ -189,12 +190,11 @@ def test_handlers_share_the_publisher_transaction() -> None:
 
 
 def test_handler_error_rolls_back_the_whole_transaction() -> None:
-    with pytest.raises(RuntimeError, match="handler failed"):
-        with SessionLocal() as session, session.begin():
-            bus = EventBus(session)
-            bus.subscribe(PaymentSucceeded, UserCreator("observer@example.com"))
-            bus.subscribe(PaymentSucceeded, Exploding())
-            make_user(session, "publisher@example.com")
-            bus.publish(SUCCEEDED)
+    with pytest.raises(RuntimeError, match="handler failed"), SessionLocal() as session, session.begin():
+        bus = EventBus(session)
+        bus.subscribe(PaymentSucceeded, UserCreator("observer@example.com"))
+        bus.subscribe(PaymentSucceeded, Exploding())
+        make_user(session, "publisher@example.com")
+        bus.publish(SUCCEEDED)
 
     assert emails() == []

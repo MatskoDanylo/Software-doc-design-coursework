@@ -82,19 +82,22 @@ def test_admin_payments_filter_and_pagination(
     third = pending_payment(client, buyer)
 
     page1 = client.get("/api/admin/payments", params={"status": "pending", "page_size": 2}, headers=admin_headers)
-    page2 = client.get("/api/admin/payments", params={"status": "pending", "page": 2, "page_size": 2},
-                       headers=admin_headers)
+    page2 = client.get(
+        "/api/admin/payments", params={"status": "pending", "page": 2, "page_size": 2}, headers=admin_headers
+    )
     everything = client.get("/api/admin/payments", headers=admin_headers).json()
 
     assert page1.status_code == 200, page1.text
     assert {k: v for k, v in page1.json().items() if k != "items"} == {"total": 3, "page": 1, "page_size": 2}
     assert [(p["id"], p["user_email"]) for p in page1.json()["items"]] == [
-        (third, "user@example.com"), (second, "stranger@example.com"),
+        (third, "user@example.com"),
+        (second, "stranger@example.com"),
     ]
     assert [p["id"] for p in page2.json()["items"]] == [first]
     assert everything["total"] == 4
-    assert_error(client.get("/api/admin/payments", params={"status": "refunded"}, headers=admin_headers),
-                 422, "validation_error")
+    assert_error(
+        client.get("/api/admin/payments", params={"status": "refunded"}, headers=admin_headers), 422, "validation_error"
+    )
 
 
 def test_admin_grants_and_revokes_premium(
@@ -102,8 +105,9 @@ def test_admin_grants_and_revokes_premium(
 ) -> None:
     target = user_id(client, buyer)
 
-    granted = client.post(f"/api/admin/users/{target}/subscription", json={"action": "grant", "days": 7},
-                          headers=admin_headers)
+    granted = client.post(
+        f"/api/admin/users/{target}/subscription", json={"action": "grant", "days": 7}, headers=admin_headers
+    )
 
     assert granted.status_code == 200, granted.text
     assert (granted.json()["plan_code"], granted.json()["cancelled"]) == ("premium", False)
@@ -120,8 +124,9 @@ def test_admin_grants_and_revokes_premium(
 def test_admin_grant_defaults_to_plan_duration(
     client: TestClient, buyer: dict[str, str], admin_headers: dict[str, str]
 ) -> None:
-    r = client.post(f"/api/admin/users/{user_id(client, buyer)}/subscription", json={"action": "grant"},
-                    headers=admin_headers)
+    r = client.post(
+        f"/api/admin/users/{user_id(client, buyer)}/subscription", json={"action": "grant"}, headers=admin_headers
+    )
 
     assert timedelta(days=29) < days_left(r.json()["expires_at"]) <= timedelta(days=30)
 
@@ -131,12 +136,23 @@ def test_admin_subscription_validation(
 ) -> None:
     target = user_id(client, buyer)
 
-    assert_error(client.post("/api/admin/users/999999/subscription", json={"action": "grant"}, headers=admin_headers),
-                 404, "user_not_found")
-    assert_error(client.post(f"/api/admin/users/{target}/subscription", json={"action": "upgrade"},
-                             headers=admin_headers), 422, "validation_error")
-    assert_error(client.post(f"/api/admin/users/{target}/subscription", json={"action": "grant", "days": 0},
-                             headers=admin_headers), 422, "validation_error")
+    assert_error(
+        client.post("/api/admin/users/999999/subscription", json={"action": "grant"}, headers=admin_headers),
+        404,
+        "user_not_found",
+    )
+    assert_error(
+        client.post(f"/api/admin/users/{target}/subscription", json={"action": "upgrade"}, headers=admin_headers),
+        422,
+        "validation_error",
+    )
+    assert_error(
+        client.post(
+            f"/api/admin/users/{target}/subscription", json={"action": "grant", "days": 0}, headers=admin_headers
+        ),
+        422,
+        "validation_error",
+    )
 
 
 def test_admin_billing_requires_admin_role(client: TestClient, buyer: dict[str, str]) -> None:
@@ -144,6 +160,9 @@ def test_admin_billing_requires_admin_role(client: TestClient, buyer: dict[str, 
 
     assert_error(client.get("/api/admin/payments", headers=buyer), 403, "forbidden")
     assert_error(resolve(client, buyer, 1, "success"), 403, "forbidden")
-    assert_error(client.post(f"/api/admin/users/{target}/subscription", json={"action": "grant"}, headers=buyer),
-                 403, "forbidden")
+    assert_error(
+        client.post(f"/api/admin/users/{target}/subscription", json={"action": "grant"}, headers=buyer),
+        403,
+        "forbidden",
+    )
     assert client.get("/api/admin/payments").status_code == 401

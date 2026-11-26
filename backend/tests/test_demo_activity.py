@@ -7,10 +7,24 @@ from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
 from app.demo_activity import (
-    DEMO_DAYS, DEMO_PASSWORD, DEMO_USERS, PREMIUM_DAYS, DemoActivitySummary, demo_emails, seed_demo_activity,
+    DEMO_DAYS,
+    DEMO_PASSWORD,
+    DEMO_USERS,
+    PREMIUM_DAYS,
+    DemoActivitySummary,
+    demo_emails,
+    seed_demo_activity,
 )
 from app.models import (
-    Favorite, Payment, PaymentStatus, Subscription, SubscriptionStatus, Title, TitleStats, User, WatchHistory,
+    Favorite,
+    Payment,
+    PaymentStatus,
+    Subscription,
+    SubscriptionStatus,
+    Title,
+    TitleStats,
+    User,
+    WatchHistory,
 )
 from app.repositories.report_repository import ReportRepository
 from app.repositories.subscription_repository import SubscriptionRepository
@@ -72,15 +86,18 @@ def test_rerun_keeps_users_outside_the_demo_list(demo: DemoActivitySummary) -> N
     with SessionLocal() as session:
         user = session.scalar(select(User).where(User.email == "demo.username@example.com"))
         assert user is not None
-        assert session.scalar(select(func.count()).select_from(WatchHistory).where(WatchHistory.user_id == user.id)) == 1
+        assert (
+            session.scalar(select(func.count()).select_from(WatchHistory).where(WatchHistory.user_id == user.id)) == 1
+        )
         assert session.scalar(select(func.count()).select_from(User)) == DEMO_USERS + 2
 
 
 def test_history_follows_registration(demo: DemoActivitySummary) -> None:
     with SessionLocal() as session:
         rows = session.execute(
-            select(WatchHistory.last_watched, WatchHistory.progress_sec, User.created_at)
-            .join(User, User.id == WatchHistory.user_id)
+            select(WatchHistory.last_watched, WatchHistory.progress_sec, User.created_at).join(
+                User, User.id == WatchHistory.user_id
+            )
         ).all()
 
     assert len(rows) == demo.history
@@ -107,14 +124,15 @@ def test_payments_and_subscriptions_are_consistent(demo: DemoActivitySummary) ->
 
 
 def weekly(values: list[float]) -> list[float]:
-    return [sum(values[i:i + 7]) for i in range(0, len(values), 7)]
+    return [sum(values[i : i + 7]) for i in range(0, len(values), 7)]
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Kyiv"])
 def test_charts_have_no_empty_periods(demo: DemoActivitySummary, timezone: str) -> None:
     today = NOW.date()
-    params = ReportParams(date_from=today - timedelta(days=DEMO_DAYS), date_to=today - timedelta(days=1),
-                          timezone=timezone)
+    params = ReportParams(
+        date_from=today - timedelta(days=DEMO_DAYS), date_to=today - timedelta(days=1), timezone=timezone
+    )
     with SessionLocal() as session:
         source = ReportRepository(session)
         activity = UserActivityReport(source, lambda tz: today).generate(params).sections[0].rows
@@ -138,9 +156,9 @@ def test_title_stats_are_rebuilt(demo: DemoActivitySummary) -> None:
 def test_demo_user_gets_personal_recommendations(client: TestClient, demo: DemoActivitySummary) -> None:
     headers = bearer(login(client, "demo.user01@example.com", DEMO_PASSWORD).json()["access_token"])
     with SessionLocal() as session:
-        watched = set(session.scalars(
-            select(WatchHistory.title_id).join(User).where(User.email == "demo.user01@example.com")
-        ))
+        watched = set(
+            session.scalars(select(WatchHistory.title_id).join(User).where(User.email == "demo.user01@example.com"))
+        )
 
     body = client.get("/api/recommendations", headers=headers).json()
 

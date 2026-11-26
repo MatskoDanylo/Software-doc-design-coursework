@@ -6,7 +6,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
 from sqlalchemy.exc import OperationalError
 
 from app.api.deps import get_transcoder, get_video_processor, get_video_store

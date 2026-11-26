@@ -41,11 +41,13 @@ def test_limited_to_keeps_variants_up_to_height(max_height: int, expected: list[
 
 
 def test_with_uri_prefix_rewrites_only_relative_uris() -> None:
-    playlist = MasterPlaylist.of([
-        Variant(640, 360, 1, "360p/index.m3u8"),
-        Variant(1280, 720, 2, "/media/other/720p/index.m3u8"),
-        Variant(1920, 1080, 3, "https://cdn.example.com/1080p/index.m3u8"),
-    ])
+    playlist = MasterPlaylist.of(
+        [
+            Variant(640, 360, 1, "360p/index.m3u8"),
+            Variant(1280, 720, 2, "/media/other/720p/index.m3u8"),
+            Variant(1920, 1080, 3, "https://cdn.example.com/1080p/index.m3u8"),
+        ]
+    )
 
     assert [v.uri for v in playlist.with_uri_prefix("/media/hls/7/").variants] == [
         "/media/hls/7/360p/index.m3u8",

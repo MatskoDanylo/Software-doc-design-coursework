@@ -1,9 +1,9 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
-from sqlalchemy import ColumnElement, Select, func, or_, select
+from sqlalchemy import ColumnElement, Select, SQLColumnExpression, func, or_, select
 
 from app.core.errors import UnprocessableError
 from app.models import Title, TitleKind, WatchHistory, title_genres
@@ -31,8 +31,8 @@ DEFAULT_ORDER: dict[SortField, SortOrder] = {
 
 @dataclass(frozen=True)
 class TitleQuery:
-    items: Select[tuple[Title]]
-    count: Select[tuple[int]]
+    items: Select[Title]
+    count: Select[int]
     page: int
     page_size: int
 
@@ -112,7 +112,7 @@ class TitleQueryBuilder:
         if field is None:
             return self
         field = SortField(field)
-        column: ColumnElement[object] = {
+        column: SQLColumnExpression[Any] = {
             SortField.RATING: Title.rating,
             SortField.YEAR: Title.year,
             SortField.NAME: func.lower(Title.name),

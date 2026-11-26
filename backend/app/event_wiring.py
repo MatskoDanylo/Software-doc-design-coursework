@@ -1,7 +1,12 @@
 from sqlalchemy.orm import Session
 
 from app.core.events import (
-    EventBus, PaymentFailed, PaymentPending, PaymentSucceeded, SubscriptionActivated, WatchFinished,
+    EventBus,
+    PaymentFailed,
+    PaymentPending,
+    PaymentSucceeded,
+    SubscriptionActivated,
+    WatchFinished,
 )
 from app.patterns.plan_factory import PlanPolicyRegistry
 from app.repositories.notification_repository import NotificationRepository

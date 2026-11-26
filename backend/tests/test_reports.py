@@ -13,10 +13,23 @@ from app.models import PaymentStatus, Plan, PlanCode, SubscriptionStatus, TitleK
 from app.repositories.report_repository import ReportRepository
 from app.services.dashboard_service import DashboardService
 from app.services.reports import (
-    GroupBy, PopularTitlesReport, Report, ReportGenerator, ReportParams, SubscriptionRevenueReport, UserActivityReport,
+    GroupBy,
+    PopularTitlesReport,
+    Report,
+    ReportGenerator,
+    ReportParams,
+    SubscriptionRevenueReport,
+    UserActivityReport,
 )
 from tests.factories import (
-    add_favorite, add_history, add_payment, add_season, add_subscription, make_genre, make_title, make_user,
+    add_favorite,
+    add_history,
+    add_payment,
+    add_season,
+    add_subscription,
+    make_genre,
+    make_title,
+    make_user,
 )
 
 TODAY = date(2026, 11, 25)
@@ -89,12 +102,17 @@ class TestUserActivity:
             {"bucket": date(2026, 11, 3), "registrations": 1, "active_users": 0, "watch_minutes": 0.0},
         ]
         assert summary(report) == {
-            "new_users": 2, "active_users": 2, "watch_hours": 0.5, "avg_progress_min": 10.0, "completion_rate": 66.7,
+            "new_users": 2,
+            "active_users": 2,
+            "watch_hours": 0.5,
+            "avg_progress_min": 10.0,
+            "completion_rate": 66.7,
         }
 
     def test_monthly_grouping_fills_empty_months(self) -> None:
-        report = generate(UserActivityReport, date_from=date(2026, 10, 1), date_to=date(2026, 11, 30),
-                          group_by=GroupBy.MONTH)
+        report = generate(
+            UserActivityReport, date_from=date(2026, 10, 1), date_to=date(2026, 11, 30), group_by=GroupBy.MONTH
+        )
 
         assert section(report, "activity") == [
             {"bucket": date(2026, 10, 1), "registrations": 0, "active_users": 0, "watch_minutes": 0.0},
@@ -113,21 +131,26 @@ class TestTimezone:
         with committed() as session:
             make_user(session, "late@example.com", created_at=at(11, 10, 23, 30))
 
-    @pytest.mark.parametrize(("timezone", "expected"), [
-        ("Europe/Kyiv", {date(2026, 11, 10): 0, date(2026, 11, 11): 1}),
-        ("UTC", {date(2026, 11, 10): 1, date(2026, 11, 11): 0}),
-    ])
+    @pytest.mark.parametrize(
+        ("timezone", "expected"),
+        [
+            ("Europe/Kyiv", {date(2026, 11, 10): 0, date(2026, 11, 11): 1}),
+            ("UTC", {date(2026, 11, 10): 1, date(2026, 11, 11): 0}),
+        ],
+    )
     def test_buckets_follow_the_report_timezone(self, timezone: str, expected: dict[date, int]) -> None:
-        report = generate(UserActivityReport, date_from=date(2026, 11, 10), date_to=date(2026, 11, 11),
-                          timezone=timezone)
+        report = generate(
+            UserActivityReport, date_from=date(2026, 11, 10), date_to=date(2026, 11, 11), timezone=timezone
+        )
 
         assert {row["bucket"]: row["registrations"] for row in section(report, "activity")} == expected
         assert report.timezone == timezone
 
     @pytest.mark.parametrize(("timezone", "new_users"), [("Europe/Kyiv", 0), ("UTC", 1)])
     def test_period_bounds_follow_the_report_timezone(self, timezone: str, new_users: int) -> None:
-        report = generate(UserActivityReport, date_from=date(2026, 11, 10), date_to=date(2026, 11, 10),
-                          timezone=timezone)
+        report = generate(
+            UserActivityReport, date_from=date(2026, 11, 10), date_to=date(2026, 11, 10), timezone=timezone
+        )
 
         assert summary(report)["new_users"] == new_users
 
@@ -155,7 +178,9 @@ class TestPopularTitles:
 
         titles = section(report, "titles")
         assert [(t["rank"], t["name"], t["viewers"], t["completions"], t["favorites"]) for t in titles] == [
-            (1, "A", 2, 1, 1), (2, "B", 1, 0, 0), (3, "C", 0, 0, 1),
+            (1, "A", 2, 1, 1),
+            (2, "B", 1, 0, 0),
+            (3, "C", 0, 0, 1),
         ]
         assert (titles[1]["kind"], titles[1]["genres"]) == ("series", "Драма, Комедія")
         assert section(report, "genres") == [
@@ -163,7 +188,11 @@ class TestPopularTitles:
             {"genre": "Комедія", "titles": 2, "viewers": 1, "completions": 0, "favorites": 1},
         ]
         assert summary(report) == {
-            "total_views": 3, "total_completions": 1, "total_favorites": 2, "top_title": "A", "top_genre": "Драма",
+            "total_views": 3,
+            "total_completions": 1,
+            "total_favorites": 2,
+            "top_title": "A",
+            "top_genre": "Драма",
         }
 
     def test_top_limit_hook_trims_titles_but_not_genres(self) -> None:
@@ -206,17 +235,23 @@ class TestRevenue:
         assert revenue[14] == {"bucket": date(2026, 11, 15), "revenue": 99.0, "payments": 1}
         assert sum(r["payments"] for r in revenue) == 3
         assert section(report, "statuses") == [
-            {"status": "created", "count": 0}, {"status": "pending", "count": 1},
-            {"status": "success", "count": 3}, {"status": "failed", "count": 1},
+            {"status": "created", "count": 0},
+            {"status": "pending", "count": 1},
+            {"status": "success", "count": 3},
+            {"status": "failed", "count": 1},
         ]
         assert summary(report) == {
-            "total_revenue": 297.0, "successful_payments": 3, "paying_users": 2, "active_premium": 1,
+            "total_revenue": 297.0,
+            "successful_payments": 3,
+            "paying_users": 2,
+            "active_premium": 1,
             "conversion": 66.7,
         }
 
     def test_monthly_revenue(self) -> None:
-        report = generate(SubscriptionRevenueReport, date_from=date(2026, 10, 1), date_to=date(2026, 11, 30),
-                          group_by=GroupBy.MONTH)
+        report = generate(
+            SubscriptionRevenueReport, date_from=date(2026, 10, 1), date_to=date(2026, 11, 30), group_by=GroupBy.MONTH
+        )
 
         assert section(report, "revenue") == [
             {"bucket": date(2026, 10, 1), "revenue": 99.0, "payments": 1},
@@ -239,18 +274,19 @@ def test_dashboard_kpis(session: Session) -> None:
     series, draft = (make_title(session, n, kind=TitleKind.SERIES.value) for n in ("Series", "Draft"))
     episode = add_season(session, series, 1, ["Pilot"]).episodes[0]
     draft_episode = add_season(session, draft, 1, ["Pilot"]).episodes[0]
-    session.add_all([
-        VideoAsset(title_id=movie.id, status=VideoStatus.READY.value, hls_path="hls/1/master.m3u8"),
-        VideoAsset(title_id=failed.id, status=VideoStatus.FAILED.value),
-        VideoAsset(episode_id=episode.id, status=VideoStatus.READY.value, hls_path="hls/3/master.m3u8"),
-        VideoAsset(episode_id=draft_episode.id, status=VideoStatus.PENDING.value),
-    ])
+    session.add_all(
+        [
+            VideoAsset(title_id=movie.id, status=VideoStatus.READY.value, hls_path="hls/1/master.m3u8"),
+            VideoAsset(title_id=failed.id, status=VideoStatus.FAILED.value),
+            VideoAsset(episode_id=episode.id, status=VideoStatus.READY.value, hls_path="hls/3/master.m3u8"),
+            VideoAsset(episode_id=draft_episode.id, status=VideoStatus.PENDING.value),
+        ]
+    )
     add_history(session, u1.id, movie, last_watched=now - timedelta(days=1))
     add_history(session, u2.id, movie, last_watched=now - timedelta(days=10))
     add_history(session, admin(session).id, movie, last_watched=now - timedelta(days=1))
     add_payment(session, u1.id, plan, PaymentStatus.SUCCESS, now - timedelta(days=5), paid_at=now - timedelta(days=5))
-    add_payment(session, u2.id, plan, PaymentStatus.SUCCESS, now - timedelta(days=40),
-                paid_at=now - timedelta(days=40))
+    add_payment(session, u2.id, plan, PaymentStatus.SUCCESS, now - timedelta(days=40), paid_at=now - timedelta(days=40))
     add_payment(session, u2.id, plan, PaymentStatus.FAILED, now - timedelta(days=1))
     add_subscription(session, u1.id, plan, now - timedelta(days=5), now + timedelta(days=25))
     session.flush()
@@ -258,5 +294,9 @@ def test_dashboard_kpis(session: Session) -> None:
     kpis = DashboardService(ReportRepository(session)).kpis()
 
     assert (kpis.total_users, kpis.active_users_7d, kpis.active_premium, kpis.revenue_30d, kpis.titles_with_video) == (
-        2, 1, 1, 99.0, 2,
+        2,
+        1,
+        1,
+        99.0,
+        2,
     )

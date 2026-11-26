@@ -70,7 +70,10 @@ def test_guest_gets_popular_titles_with_tiered_reasons(client: TestClient, catal
     assert body["strategy"] == "popularity"
     assert ids(body["items"]) == [catalog[k] for k in ("c1", "s1", "d3", "d2", "d1")]
     assert [i["reason"] for i in body["items"]] == [
-        "Популярне цього тижня", "Популярне цього тижня", "Популярне серед глядачів", "Високий рейтинг",
+        "Популярне цього тижня",
+        "Популярне цього тижня",
+        "Популярне серед глядачів",
+        "Високий рейтинг",
         "Високий рейтинг",
     ]
     assert body["items"][0]["genres"][0]["name"] == "Комедія"
@@ -87,7 +90,8 @@ def test_unknown_strategy_is_rejected(
     assert_error(client.get("/api/recommendations", params={"strategy": "random"}), 422, "unknown_strategy")
     assert_error(
         client.get("/api/recommendations", params={"strategy": "random"}, headers=user_headers),
-        422, "unknown_strategy",
+        422,
+        "unknown_strategy",
     )
 
 
@@ -132,8 +136,10 @@ def test_genre_affinity_is_filled_up_to_limit_with_popular_titles(
     assert body["strategy"] == "genre_affinity"
     assert ids(body["items"]) == [catalog[k] for k in ("d2", "d3", "c1", "s1")]
     assert [i["reason"] for i in body["items"]] == [
-        "Бо ви дивились жанр «Драма»", "Бо ви дивились жанр «Драма»",
-        "Популярне цього тижня", "Популярне цього тижня",
+        "Бо ви дивились жанр «Драма»",
+        "Бо ви дивились жанр «Драма»",
+        "Популярне цього тижня",
+        "Популярне цього тижня",
     ]
     scores = [i["score"] for i in body["items"]]
     assert scores == sorted(scores, reverse=True)

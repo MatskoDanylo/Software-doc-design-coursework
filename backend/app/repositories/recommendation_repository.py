@@ -45,8 +45,15 @@ class RecommendationRepository:
             .outerjoin(window, window.c.title_id == Title.id)
             .outerjoin(TitleStats, TitleStats.title_id == Title.id)
             .where(*self._not_in(exclude))
-            .order_by(tier, window_viewers.desc(), window_completions.desc(), total_viewers.desc(),
-                      total_completions.desc(), Title.rating.desc(), Title.id)
+            .order_by(
+                tier,
+                window_viewers.desc(),
+                window_completions.desc(),
+                total_viewers.desc(),
+                total_completions.desc(),
+                Title.rating.desc(),
+                Title.id,
+            )
             .limit(limit)
         )
         return [PopularTitle(*row) for row in self.session.execute(statement)]
@@ -62,9 +69,7 @@ class RecommendationRepository:
             return []
         return self._load(select(Title).where(self._tagged(genre_ids), *self._not_in(exclude)), limit)
 
-    def similar_candidates(
-        self, seed: TitleFeatures, exclude: Collection[int], limit: int
-    ) -> Sequence[TitleFeatures]:
+    def similar_candidates(self, seed: TitleFeatures, exclude: Collection[int], limit: int) -> Sequence[TitleFeatures]:
         same_country = func.lower(Title.country) == seed.country.lower()
         related = or_(self._tagged(seed.genre_ids), same_country) if seed.genre_ids else same_country
         return self._load(select(Title).where(related, *self._not_in(exclude)), limit)
@@ -74,7 +79,7 @@ class RecommendationRepository:
         if not ids:
             return {}
         rows = self.session.execute(select(Genre.id, Genre.name).where(Genre.id.in_(ids)))
-        return {genre_id: name for genre_id, name in rows}
+        return dict(rows.all())
 
     def taste(self, user_id: int) -> UserTaste:
         rows = self.session.execute(

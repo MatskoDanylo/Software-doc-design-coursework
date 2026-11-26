@@ -86,11 +86,14 @@ def test_template_method_runs_steps_in_order() -> None:
     )
 
 
-@pytest.mark.parametrize(("params", "expected"), [
-    (ReportParams(date_to=date(2026, 6, 30)), (date(2026, 6, 1), date(2026, 6, 30))),
-    (ReportParams(date_from=date(2026, 11, 1)), (date(2026, 11, 1), TODAY)),
-    (ReportParams(date_from=date(2026, 1, 5), date_to=date(2026, 1, 5)), (date(2026, 1, 5), date(2026, 1, 5))),
-])
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        (ReportParams(date_to=date(2026, 6, 30)), (date(2026, 6, 1), date(2026, 6, 30))),
+        (ReportParams(date_from=date(2026, 11, 1)), (date(2026, 11, 1), TODAY)),
+        (ReportParams(date_from=date(2026, 1, 5), date_to=date(2026, 1, 5)), (date(2026, 1, 5), date(2026, 1, 5))),
+    ],
+)
 def test_missing_dates_are_filled_from_the_default_period(params: ReportParams, expected: tuple[date, date]) -> None:
     report = RecordingReport().generate(params)
 
@@ -131,6 +134,7 @@ def test_explicit_group_by_wins_over_the_hook() -> None:
 
 def test_template_method_cannot_be_overridden() -> None:
     with pytest.raises(TypeError, match="must not override the template method"):
+
         class Rogue(RecordingReport):
             def generate(self, params: ReportParams) -> Report:  # type: ignore[misc]
                 raise AssertionError
@@ -145,8 +149,9 @@ def test_concrete_reports_customize_hooks() -> None:
     with pytest.raises(UnprocessableError) as error:
         activity.validate(ReportParams(date_from=date(2025, 1, 1), date_to=date(2026, 1, 2)))
     assert error.value.code == "period_too_long"
-    monthly = activity.validate(ReportParams(date_from=date(2025, 1, 1), date_to=date(2026, 1, 2),
-                                             group_by=GroupBy.MONTH))
+    monthly = activity.validate(
+        ReportParams(date_from=date(2025, 1, 1), date_to=date(2026, 1, 2), group_by=GroupBy.MONTH)
+    )
     assert monthly.days == 367
 
 
@@ -186,8 +191,12 @@ def sample_report() -> Report:
         timezone="Europe/Kyiv",
         summary=(SummaryItem("total", "Дохід, грн", 198.5), SummaryItem("top", "Найкращий", None)),
         sections=(
-            ReportSection("rows", "Дохід за днями", (ReportColumn("bucket", "Період"), ReportColumn("sum", "Сума")),
-                          [{"bucket": date(2026, 11, 1), "sum": 99.0}, {"bucket": date(2026, 11, 2), "sum": 99.5}]),
+            ReportSection(
+                "rows",
+                "Дохід за днями",
+                (ReportColumn("bucket", "Період"), ReportColumn("sum", "Сума")),
+                [{"bucket": date(2026, 11, 1), "sum": 99.0}, {"bucket": date(2026, 11, 2), "sum": 99.5}],
+            ),
             ReportSection("names", "Тайтли", (ReportColumn("name", "Назва"),), [{"name": "Кіно; частина 2"}]),
         ),
     )
@@ -212,15 +221,29 @@ def test_csv_export_has_bom_semicolons_and_cyrillic() -> None:
         "",
     ]
     assert lines[9:16] == [
-        "Дохід за днями", "Період;Сума", "2026-11-01;99", "2026-11-02;99,5", "", "Тайтли", "Назва",
+        "Дохід за днями",
+        "Період;Сума",
+        "2026-11-01;99",
+        "2026-11-02;99,5",
+        "",
+        "Тайтли",
+        "Назва",
     ]
     assert lines[16] == '"Кіно; частина 2"'
     assert exporter.filename(sample_report()) == "sample_2026-11-01_2026-11-02.csv"
 
 
-@pytest.mark.parametrize(("value", "text"), [
-    (None, ""), (3, "3"), (0.25, "0,25"), (123456.75, "123456,75"), (1980.0, "1980"), (date(2026, 1, 2), "2026-01-02"),
-    ("Драма", "Драма"),
-])
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        (None, ""),
+        (3, "3"),
+        (0.25, "0,25"),
+        (123456.75, "123456,75"),
+        (1980.0, "1980"),
+        (date(2026, 1, 2), "2026-01-02"),
+        ("Драма", "Драма"),
+    ],
+)
 def test_csv_value_formatting(value: Any, text: str) -> None:
     assert CsvReportExporter.format(value) == text

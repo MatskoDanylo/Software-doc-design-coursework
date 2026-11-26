@@ -1,8 +1,23 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
-    admin, admin_billing, admin_catalog, admin_reports, admin_settings, admin_video, auth, billing, catalog, favorites, history, notifications,
-    playback, plans, recommendations, subscriptions, users,
+    admin,
+    admin_billing,
+    admin_catalog,
+    admin_reports,
+    admin_settings,
+    admin_video,
+    auth,
+    billing,
+    catalog,
+    favorites,
+    history,
+    notifications,
+    plans,
+    playback,
+    recommendations,
+    subscriptions,
+    users,
 )
 
 api_router = APIRouter(prefix="/api")

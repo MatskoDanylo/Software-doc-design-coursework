@@ -23,10 +23,12 @@ class SettingsRepository:
         if not values:
             return
         statement = insert(AppSetting).values([{"key": key, "value": value} for key, value in values.items()])
-        self.session.execute(statement.on_conflict_do_update(
-            index_elements=[AppSetting.key],
-            set_={"value": statement.excluded.value, "updated_at": func.now()},
-        ))
+        self.session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[AppSetting.key],
+                set_={"value": statement.excluded.value, "updated_at": func.now()},
+            )
+        )
 
     def timezone_exists(self, name: str) -> bool:
         return bool(self.session.scalar(select(exists().where(pg_timezone_names.c.name == name))))

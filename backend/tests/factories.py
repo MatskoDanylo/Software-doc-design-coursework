@@ -7,8 +7,20 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models import (
-    Episode, Favorite, Genre, Payment, PaymentStatus, Plan, Profile, Season, Subscription, SubscriptionStatus, Title,
-    TitleKind, User, WatchHistory,
+    Episode,
+    Favorite,
+    Genre,
+    Payment,
+    PaymentStatus,
+    Plan,
+    Profile,
+    Season,
+    Subscription,
+    SubscriptionStatus,
+    Title,
+    TitleKind,
+    User,
+    WatchHistory,
 )
 
 
@@ -113,7 +125,11 @@ def add_payment(
 
 
 def add_subscription(
-    session: Session, user_id: int, plan: Plan, started_at: datetime, expires_at: datetime,
+    session: Session,
+    user_id: int,
+    plan: Plan,
+    started_at: datetime,
+    expires_at: datetime,
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
 ) -> Subscription:
     subscription = Subscription(

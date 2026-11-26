@@ -68,16 +68,23 @@ class SubscriptionService:
             if active is not None:
                 active.status = SubscriptionStatus.EXPIRED
                 self.subscriptions.save(active)
-            subscription = self.subscriptions.add(Subscription(
+            subscription = self.subscriptions.add(
+                Subscription(
+                    user_id=user_id,
+                    plan=plan,
+                    status=SubscriptionStatus.ACTIVE,
+                    started_at=now,
+                    expires_at=now + timedelta(days=duration),
+                )
+            )
+        self.events.publish(
+            SubscriptionActivated(
                 user_id=user_id,
-                plan=plan,
-                status=SubscriptionStatus.ACTIVE,
-                started_at=now,
-                expires_at=now + timedelta(days=duration),
-            ))
-        self.events.publish(SubscriptionActivated(
-            user_id=user_id, subscription_id=subscription.id, plan_code=plan.code, expires_at=subscription.expires_at
-        ))
+                subscription_id=subscription.id,
+                plan_code=plan.code,
+                expires_at=subscription.expires_at,
+            )
+        )
         return subscription
 
     def cancel(self, user: User) -> SubscriptionInfo:

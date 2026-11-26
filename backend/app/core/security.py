@@ -19,11 +19,11 @@ class TokenType(StrEnum):
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return str(_pwd_context.hash(password))
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return _pwd_context.verify(password, password_hash)
+    return bool(_pwd_context.verify(password, password_hash))
 
 
 def _lifetime(token_type: TokenType) -> timedelta:
@@ -41,7 +41,7 @@ def create_token(user_id: int, token_type: TokenType) -> str:
         "iat": now,
         "exp": now + _lifetime(token_type),
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+    return str(jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM))
 
 
 def decode_token(token: str, expected_type: TokenType) -> int:

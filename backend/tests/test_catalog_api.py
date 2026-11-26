@@ -16,14 +16,26 @@ def catalog() -> dict[str, int]:
         drama, comedy, scifi = (make_genre(session, n) for n in ("Drama", "comedy", "Sci-Fi"))
         matrix = make_title(session, "The Matrix", [scifi], year=1999, rating=8.7, description="A hacker")
         amelie = make_title(session, "Amelie", [comedy, drama], year=2001, country="France", rating=8.3)
-        dark = make_title(session, "Dark", [scifi, drama], kind=TitleKind.SERIES.value, year=2017,
-                          country="Germany", rating=8.7, description="Time travel mystery")
+        dark = make_title(
+            session,
+            "Dark",
+            [scifi, drama],
+            kind=TitleKind.SERIES.value,
+            year=2017,
+            country="Germany",
+            rating=8.7,
+            description="Time travel mystery",
+        )
         make_title(session, "Taxi", [comedy], year=1998, country="France", rating=7.0)
         add_season(session, dark, 2, ["Ghosts", "Sic Mundus"])
         add_season(session, dark, 1, ["Secrets", "Lies", "Past and Present"])
         return {
-            "drama": drama.id, "comedy": comedy.id, "scifi": scifi.id,
-            "matrix": matrix.id, "amelie": amelie.id, "dark": dark.id,
+            "drama": drama.id,
+            "comedy": comedy.id,
+            "scifi": scifi.id,
+            "matrix": matrix.id,
+            "amelie": amelie.id,
+            "dark": dark.id,
         }
 
 
@@ -47,9 +59,16 @@ def test_titles_default_to_rating_desc_with_full_item_shape(client: TestClient, 
     assert names(body) == ["The Matrix", "Dark", "Amelie", "Taxi"]
     assert body["total"] == 4
     assert body["items"][0] == {
-        "id": catalog["matrix"], "kind": "movie", "name": "The Matrix", "description": "A hacker",
-        "year": 1999, "country": "USA", "rating": 8.7, "poster_url": None,
-        "genres": [{"id": catalog["scifi"], "name": "Sci-Fi"}], "is_favorite": False,
+        "id": catalog["matrix"],
+        "kind": "movie",
+        "name": "The Matrix",
+        "description": "A hacker",
+        "year": 1999,
+        "country": "USA",
+        "rating": 8.7,
+        "poster_url": None,
+        "genres": [{"id": catalog["scifi"], "name": "Sci-Fi"}],
+        "is_favorite": False,
     }
     assert "seasons" not in body["items"][0]
 
@@ -124,7 +143,9 @@ def test_title_detail_includes_genres_and_ordered_seasons(client: TestClient, ca
     assert [g["name"] for g in body["genres"]] == ["Drama", "Sci-Fi"]
     assert [s["number"] for s in body["seasons"]] == [1, 2]
     assert [(e["number"], e["name"]) for e in body["seasons"][0]["episodes"]] == [
-        (1, "Secrets"), (2, "Lies"), (3, "Past and Present"),
+        (1, "Secrets"),
+        (2, "Lies"),
+        (3, "Past and Present"),
     ]
     assert [e["name"] for e in body["seasons"][1]["episodes"]] == ["Ghosts", "Sic Mundus"]
 

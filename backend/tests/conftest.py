@@ -8,19 +8,17 @@ import pytest
 from sqlalchemy import create_engine, make_url, text
 from sqlalchemy.exc import OperationalError
 
-TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://cinema:cinema@localhost:5432/cinema_test"
-)
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://cinema:cinema@localhost:5432/cinema_test")
 if not make_url(TEST_DATABASE_URL).database.endswith("_test"):
     raise RuntimeError(f"Refusing to run tests against non-test database: {TEST_DATABASE_URL}")
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 MEDIA_DIR = Path(tempfile.mkdtemp(prefix="cinema-test-media-"))
 os.environ["MEDIA_DIR"] = str(MEDIA_DIR)
 
-from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from alembic import command  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402

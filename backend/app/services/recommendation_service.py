@@ -90,7 +90,7 @@ class RecommendationService:
         floor = min((item.score for item in items), default=1.0)
         popular = env.create(PopularityStrategy.code).recommend(context, limit + len(items))
         extra = [replace(p, score=floor * p.score) for p in popular if p.title_id not in chosen]
-        return items + extra[:limit - len(items)]
+        return items + extra[: limit - len(items)]
 
     def _read(self, items: Sequence[ScoredTitle], user: User | None) -> list[RecommendationRead]:
         titles = {t.id: t for t in self.titles.get_many([item.title_id for item in items])}

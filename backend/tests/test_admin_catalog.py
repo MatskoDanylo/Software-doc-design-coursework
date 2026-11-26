@@ -41,8 +41,12 @@ def ids() -> dict[str, int]:
         series = make_title(session, "Dark", [drama], kind=TitleKind.SERIES.value, year=2017, country="Germany")
         season = add_season(session, series, 1, ["Secrets", "Lies"])
         return {
-            "drama": drama.id, "comedy": comedy.id, "movie": movie.id, "series": series.id,
-            "season": season.id, "episode": season.episodes[0].id,
+            "drama": drama.id,
+            "comedy": comedy.id,
+            "movie": movie.id,
+            "series": series.id,
+            "season": season.id,
+            "episode": season.episodes[0].id,
         }
 
 
@@ -77,8 +81,13 @@ def test_admin_catalog_allowed_for_admin(
 class TestTitles:
     def test_create(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
         payload = {
-            "kind": "movie", "name": "  Amelie ", "description": "Paris", "year": 2001, "country": "France",
-            "rating": 8.3, "genre_ids": [ids["drama"], ids["comedy"], ids["drama"]],
+            "kind": "movie",
+            "name": "  Amelie ",
+            "description": "Paris",
+            "year": 2001,
+            "country": "France",
+            "rating": 8.3,
+            "genre_ids": [ids["drama"], ids["comedy"], ids["drama"]],
         }
 
         r = client.post("/api/admin/titles", headers=admin_headers, json=payload)
@@ -99,8 +108,14 @@ class TestTitles:
     @pytest.mark.parametrize(
         "override",
         [
-            {"kind": "cartoon"}, {"name": "   "}, {"year": 1800}, {"rating": 10.5}, {"country": ""},
-            {"genre_ids": ["x"]}, {"poster_url": "/hack.png"}, {"name": None},
+            {"kind": "cartoon"},
+            {"name": "   "},
+            {"year": 1800},
+            {"rating": 10.5},
+            {"country": ""},
+            {"genre_ids": ["x"]},
+            {"poster_url": "/hack.png"},
+            {"name": None},
         ],
     )
     def test_create_validates(self, client: TestClient, admin_headers: dict[str, str], override: dict) -> None:
@@ -114,7 +129,9 @@ class TestTitles:
         assert_error(client.post("/api/admin/titles", headers=admin_headers, json=payload), 422, "unknown_genre")
         assert count(Title) == 0
 
-    def test_create_rejects_duplicate(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_create_rejects_duplicate(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         payload = {"kind": "movie", "name": "Taxi", "year": 1998, "country": "USA"}
 
         assert_error(client.post("/api/admin/titles", headers=admin_headers, json=payload), 409, "title_exists")
@@ -123,7 +140,8 @@ class TestTitles:
 
     def test_update_is_partial(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
         r = client.patch(
-            f"/api/admin/titles/{ids['movie']}", headers=admin_headers,
+            f"/api/admin/titles/{ids['movie']}",
+            headers=admin_headers,
             json={"rating": 7.5, "genre_ids": [ids["drama"]]},
         )
 
@@ -133,7 +151,9 @@ class TestTitles:
         assert [g["name"] for g in body["genres"]] == ["Drama"]
         assert client.get(f"/api/titles/{ids['movie']}").json()["rating"] == 7.5
 
-    def test_update_can_clear_genres(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_update_can_clear_genres(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         r = client.patch(f"/api/admin/titles/{ids['movie']}", headers=admin_headers, json={"genre_ids": []})
 
         assert r.json()["genres"] == []
@@ -155,7 +175,9 @@ class TestTitles:
         )
         assert r.status_code == 200, "different kind is a different title"
 
-        r = client.patch(f"/api/admin/titles/{ids['series']}", headers=admin_headers, json={"name": "Taxi", "year": 1998})
+        r = client.patch(
+            f"/api/admin/titles/{ids['series']}", headers=admin_headers, json={"name": "Taxi", "year": 1998}
+        )
         assert r.status_code == 200, "re-saving the same identity is not a conflict"
 
         with SessionLocal() as session, session.begin():
@@ -201,7 +223,9 @@ class TestGenres:
         assert client.get("/api/genres").json() == [r.json()]
 
     @pytest.mark.parametrize("name", ["Drama", "DRAMA", " drama "])
-    def test_create_duplicate(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int], name: str) -> None:
+    def test_create_duplicate(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int], name: str
+    ) -> None:
         assert_error(client.post("/api/admin/genres", headers=admin_headers, json={"name": name}), 409, "genre_exists")
 
     @pytest.mark.parametrize("payload", [{"name": ""}, {"name": "x" * 81}, {}, {"name": None}])
@@ -214,7 +238,9 @@ class TestGenres:
         assert r.json() == {"id": ids["drama"], "name": "Драма"}
         assert client.get(f"/api/titles/{ids['series']}").json()["genres"][0]["name"] == "Драма"
 
-    def test_rename_case_of_itself(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_rename_case_of_itself(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         r = client.patch(f"/api/admin/genres/{ids['drama']}", headers=admin_headers, json={"name": "DRAMA"})
 
         assert r.status_code == 200 and r.json()["name"] == "DRAMA"
@@ -224,7 +250,9 @@ class TestGenres:
 
         assert_error(r, 409, "genre_exists")
 
-    def test_delete_detaches_from_titles(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_delete_detaches_from_titles(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         assert client.delete(f"/api/admin/genres/{ids['drama']}", headers=admin_headers).status_code == 204
 
         assert client.get(f"/api/titles/{ids['series']}").json()["genres"] == []
@@ -245,7 +273,9 @@ class TestSeasonsAndEpisodes:
         assert r.json()["number"] == 2 and r.json()["episodes"] == []
         assert [s["number"] for s in client.get(f"/api/titles/{ids['series']}").json()["seasons"]] == [1, 2]
 
-    def test_season_requires_series(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_season_requires_series(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         r = client.post(f"/api/admin/titles/{ids['movie']}/seasons", headers=admin_headers, json={"number": 1})
 
         assert_error(r, 409, "not_a_series")
@@ -269,14 +299,18 @@ class TestSeasonsAndEpisodes:
         assert r.status_code == 200
         assert r.json()["number"] == 3 and len(r.json()["episodes"]) == 2
 
-    def test_update_season_conflict(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_update_season_conflict(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         client.post(f"/api/admin/titles/{ids['series']}/seasons", headers=admin_headers, json={"number": 2})
 
         r = client.patch(f"/api/admin/seasons/{ids['season']}", headers=admin_headers, json={"number": 2})
 
         assert_error(r, 409, "season_exists")
 
-    def test_delete_season_cascades(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_delete_season_cascades(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         assert client.delete(f"/api/admin/seasons/{ids['season']}", headers=admin_headers).status_code == 204
 
         assert (count(Season), count(Episode)) == (0, 0)
@@ -299,7 +333,9 @@ class TestSeasonsAndEpisodes:
 
         assert_error(r, 409, "episode_exists")
 
-    @pytest.mark.parametrize("payload", [{"number": 1}, {"name": "X"}, {"number": 0, "name": "X"}, {"number": 9, "name": ""}])
+    @pytest.mark.parametrize(
+        "payload", [{"number": 1}, {"name": "X"}, {"number": 0, "name": "X"}, {"number": 9, "name": ""}]
+    )
     def test_episode_validates(
         self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int], payload: dict
     ) -> None:
@@ -313,7 +349,9 @@ class TestSeasonsAndEpisodes:
         assert r.status_code == 200
         assert (r.json()["number"], r.json()["name"]) == (1, "Geheimnisse")
 
-    def test_update_episode_conflict(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_update_episode_conflict(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         r = client.patch(f"/api/admin/episodes/{ids['episode']}", headers=admin_headers, json={"number": 2})
 
         assert_error(r, 409, "episode_exists")
@@ -346,9 +384,18 @@ class TestPoster:
             f"/api/admin/titles/{title_id}/poster", headers=headers, files={"file": ("poster", content, mime)}
         )
 
-    @pytest.mark.parametrize(("content", "mime", "ext"), [(PNG, "image/png", "png"), (JPEG, "image/jpeg", "jpg"), (WEBP, "image/webp", "webp")])
+    @pytest.mark.parametrize(
+        ("content", "mime", "ext"),
+        [(PNG, "image/png", "png"), (JPEG, "image/jpeg", "jpg"), (WEBP, "image/webp", "webp")],
+    )
     def test_upload_and_serve(
-        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int], content: bytes, mime: str, ext: str
+        self,
+        client: TestClient,
+        admin_headers: dict[str, str],
+        ids: dict[str, int],
+        content: bytes,
+        mime: str,
+        ext: str,
     ) -> None:
         r = self.upload(client, admin_headers, ids["movie"], content, mime)
 
@@ -359,7 +406,9 @@ class TestPoster:
         served = client.get(url)
         assert served.status_code == 200 and served.content == content
 
-    def test_replacing_removes_old_file(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_replacing_removes_old_file(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         old = self.upload(client, admin_headers, ids["movie"], PNG, "image/png").json()["poster_url"]
 
         new = self.upload(client, admin_headers, ids["movie"], JPEG, "image/jpeg").json()["poster_url"]
@@ -367,7 +416,9 @@ class TestPoster:
         assert new != old
         assert not poster_path(old).exists() and poster_path(new).exists()
 
-    def test_deleting_title_removes_poster(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_deleting_title_removes_poster(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         url = self.upload(client, admin_headers, ids["movie"], PNG, "image/png").json()["poster_url"]
 
         client.delete(f"/api/admin/titles/{ids['movie']}", headers=admin_headers)
@@ -392,7 +443,9 @@ class TestPoster:
         assert_error(r, 415, "unsupported_media_type")
         assert client.get(f"/api/titles/{ids['movie']}").json()["poster_url"] is None
 
-    def test_accepts_exactly_max_size(self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]) -> None:
+    def test_accepts_exactly_max_size(
+        self, client: TestClient, admin_headers: dict[str, str], ids: dict[str, int]
+    ) -> None:
         content = PNG + b"\x00" * (MAX_POSTER_BYTES - len(PNG))
 
         assert self.upload(client, admin_headers, ids["movie"], content, "image/png").status_code == 200

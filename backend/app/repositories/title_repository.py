@@ -17,9 +17,7 @@ class TitleRepository(SqlAlchemyRepository[Title]):
 
     def get_detailed(self, title_id: int) -> Title | None:
         return self.session.scalar(
-            select(Title)
-            .where(Title.id == title_id)
-            .options(selectinload(Title.seasons).selectinload(Season.episodes))
+            select(Title).where(Title.id == title_id).options(selectinload(Title.seasons).selectinload(Season.episodes))
         )
 
     def get_many(self, title_ids: Sequence[int]) -> list[Title]:

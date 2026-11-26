@@ -18,11 +18,14 @@ class NotificationRepository(SqlAlchemyRepository[Notification]):
         ).all()
 
     def unread_count(self, user_id: int) -> int:
-        return self.session.scalar(
-            select(func.count())
-            .select_from(Notification)
-            .where(Notification.user_id == user_id, Notification.read.is_(False))
-        ) or 0
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(Notification.user_id == user_id, Notification.read.is_(False))
+            )
+            or 0
+        )
 
     def get_for_user(self, notification_id: int, user_id: int) -> Notification | None:
         return self.session.scalar(

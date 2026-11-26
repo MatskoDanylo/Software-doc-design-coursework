@@ -75,20 +75,23 @@ def test_second_update_overwrites_values(client: TestClient, admin_headers: dict
     assert (r.json()["popularity_window_days"], r.json()["report_timezone"]) == (90, "Europe/Kyiv")
 
 
-@pytest.mark.parametrize(("changes", "code"), [
-    ({"recommendation_default_strategy": "random"}, "unknown_strategy"),
-    ({"hybrid_weights": {"genre_affinity": 0.5, "telepathy": 0.5}}, "unknown_strategy"),
-    ({"hybrid_weights": {"hybrid": 0.5}}, "unknown_strategy"),
-    ({"hybrid_weights": {"popularity": 1.5}}, "validation_error"),
-    ({"hybrid_weights": {"popularity": -0.1}}, "validation_error"),
-    ({"hybrid_weights": {"popularity": 0.0, "similar": 0.0}}, "validation_error"),
-    ({"hybrid_weights": {}}, "validation_error"),
-    ({"popularity_window_days": 0}, "validation_error"),
-    ({"popularity_window_days": 366}, "validation_error"),
-    ({"report_timezone": "Mars/Olympus_Mons"}, "unknown_timezone"),
-    ({"report_timezone": "europe/kyiv"}, "unknown_timezone"),
-    ({"theme": "dark"}, "validation_error"),
-])
+@pytest.mark.parametrize(
+    ("changes", "code"),
+    [
+        ({"recommendation_default_strategy": "random"}, "unknown_strategy"),
+        ({"hybrid_weights": {"genre_affinity": 0.5, "telepathy": 0.5}}, "unknown_strategy"),
+        ({"hybrid_weights": {"hybrid": 0.5}}, "unknown_strategy"),
+        ({"hybrid_weights": {"popularity": 1.5}}, "validation_error"),
+        ({"hybrid_weights": {"popularity": -0.1}}, "validation_error"),
+        ({"hybrid_weights": {"popularity": 0.0, "similar": 0.0}}, "validation_error"),
+        ({"hybrid_weights": {}}, "validation_error"),
+        ({"popularity_window_days": 0}, "validation_error"),
+        ({"popularity_window_days": 366}, "validation_error"),
+        ({"report_timezone": "Mars/Olympus_Mons"}, "unknown_timezone"),
+        ({"report_timezone": "europe/kyiv"}, "unknown_timezone"),
+        ({"theme": "dark"}, "validation_error"),
+    ],
+)
 def test_invalid_settings_are_rejected(
     client: TestClient, admin_headers: dict[str, str], changes: dict[str, Any], code: str
 ) -> None:
@@ -115,11 +118,13 @@ def test_settings_require_admin(client: TestClient, user_headers: dict[str, str]
 
 def test_invalid_stored_values_fall_back_to_defaults() -> None:
     with SessionLocal() as session, session.begin():
-        session.add_all([
-            AppSetting(key="recommendation_default_strategy", value="removed_strategy"),
-            AppSetting(key="popularity_window_days", value="often"),
-            AppSetting(key="hybrid_weights", value={"popularity": 1.0}),
-        ])
+        session.add_all(
+            [
+                AppSetting(key="recommendation_default_strategy", value="removed_strategy"),
+                AppSetting(key="popularity_window_days", value="often"),
+                AppSetting(key="hybrid_weights", value={"popularity": 1.0}),
+            ]
+        )
 
     settings = read_settings()
 
@@ -179,8 +184,12 @@ def test_settings_drive_the_recommendation_service(
 def test_hybrid_weights_from_settings_change_the_mix(
     client: TestClient, admin_headers: dict[str, str], user_headers: dict[str, str], watched_catalog: dict[str, int]
 ) -> None:
-    put(client, admin_headers, recommendation_default_strategy="hybrid",
-        hybrid_weights={"popularity": 1.0, "genre_affinity": 0.0, "similar": 0.0})
+    put(
+        client,
+        admin_headers,
+        recommendation_default_strategy="hybrid",
+        hybrid_weights={"popularity": 1.0, "genre_affinity": 0.0, "similar": 0.0},
+    )
 
     _, by_id = reasons(client, user_headers)
 

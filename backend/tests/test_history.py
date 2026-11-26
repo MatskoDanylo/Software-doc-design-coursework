@@ -29,8 +29,15 @@ def catalog() -> dict[str, int]:
         first, second = add_season(session, dark, 1, ["Secrets", "Lies"]).episodes
         add_season(session, dark, 2, ["Ghosts"])
         pilot = add_season(session, lost, 1, ["Pilot"]).episodes[0]
-        return {"heat": heat.id, "ronin": ronin.id, "dark": dark.id, "lost": lost.id,
-                "e1": first.id, "e2": second.id, "pilot": pilot.id}
+        return {
+            "heat": heat.id,
+            "ronin": ronin.id,
+            "dark": dark.id,
+            "lost": lost.id,
+            "e1": first.id,
+            "e2": second.id,
+            "pilot": pilot.id,
+        }
 
 
 def put_progress(client: TestClient, headers: dict[str, str], **body: Any) -> dict[str, Any]:
@@ -113,7 +120,8 @@ def test_series_shows_only_latest_unfinished_episode(
     entries = continue_watching(client, user_headers)
 
     assert [(e["title"]["name"], e["episode"] and e["episode"]["id"]) for e in entries] == [
-        ("Dark", catalog["e2"]), ("Heat", None),
+        ("Dark", catalog["e2"]),
+        ("Heat", None),
     ]
 
 
@@ -127,7 +135,8 @@ def test_history_marks_favorite_titles(
 
     assert body["title"]["is_favorite"] is True
     assert {e["title"]["name"]: e["title"]["is_favorite"] for e in continue_watching(client, user_headers)} == {
-        "Heat": True, "Ronin": False,
+        "Heat": True,
+        "Ronin": False,
     }
 
 
@@ -135,11 +144,13 @@ def test_entries_carry_duration_of_ready_video(
     client: TestClient, user_headers: dict[str, str], catalog: dict[str, int]
 ) -> None:
     with SessionLocal() as session, session.begin():
-        session.add_all([
-            VideoAsset(title_id=catalog["heat"], status=VideoStatus.READY, duration_sec=5400),
-            VideoAsset(episode_id=catalog["e1"], status=VideoStatus.READY, duration_sec=2700),
-            VideoAsset(title_id=catalog["ronin"], status=VideoStatus.PROCESSING, duration_sec=None),
-        ])
+        session.add_all(
+            [
+                VideoAsset(title_id=catalog["heat"], status=VideoStatus.READY, duration_sec=5400),
+                VideoAsset(episode_id=catalog["e1"], status=VideoStatus.READY, duration_sec=2700),
+                VideoAsset(title_id=catalog["ronin"], status=VideoStatus.PROCESSING, duration_sec=None),
+            ]
+        )
     put_progress(client, user_headers, title_id=catalog["heat"], progress_sec=60)
     put_progress(client, user_headers, title_id=catalog["ronin"], progress_sec=60)
     put_progress(client, user_headers, title_id=catalog["lost"], episode_id=catalog["pilot"], progress_sec=60)
@@ -147,7 +158,10 @@ def test_entries_carry_duration_of_ready_video(
 
     assert body["duration_sec"] == 2700
     assert {e["title"]["name"]: e["duration_sec"] for e in continue_watching(client, user_headers)} == {
-        "Heat": 5400, "Ronin": None, "Lost": None, "Dark": 2700,
+        "Heat": 5400,
+        "Ronin": None,
+        "Lost": None,
+        "Dark": 2700,
     }
 
 
@@ -174,8 +188,12 @@ def test_history_is_per_user(client: TestClient, user_headers: dict[str, str], c
     ],
 )
 def test_progress_validation(
-    client: TestClient, user_headers: dict[str, str], catalog: dict[str, int],
-    body: dict[str, Any], status: int, code: str,
+    client: TestClient,
+    user_headers: dict[str, str],
+    catalog: dict[str, int],
+    body: dict[str, Any],
+    status: int,
+    code: str,
 ) -> None:
     payload = {k: catalog.get(v, 999) if k in {"title_id", "episode_id"} else v for k, v in body.items()}
 

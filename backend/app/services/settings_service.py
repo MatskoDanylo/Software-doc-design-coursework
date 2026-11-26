@@ -5,7 +5,10 @@ from pydantic import ValidationError
 
 from app.core.errors import AppError, UnprocessableError
 from app.patterns.recommendation import (
-    DEFAULT_RECOMMENDATION_CONFIG, HybridStrategy, RecommendationConfig, UnknownStrategyError,
+    DEFAULT_RECOMMENDATION_CONFIG,
+    HybridStrategy,
+    RecommendationConfig,
+    UnknownStrategyError,
 )
 from app.schemas.settings import AppSettingsRead, AppSettingsUpdate
 from app.services.ports import SettingsStore

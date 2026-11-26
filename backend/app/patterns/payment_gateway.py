@@ -70,7 +70,7 @@ class MockPaymentProvider:
             raise MockProviderError("E_BAD_SUM", "sum must be a positive number of kopiyky")
         if ccy != "980":
             raise MockProviderError("E_BAD_CCY", f"currency {ccy} is not accepted")
-        invoice = {
+        invoice: dict[str, Any] = {
             "invoice_id": f"inv_{uuid4().hex}",
             "state": "NEW",
             "sum": sum_kop,

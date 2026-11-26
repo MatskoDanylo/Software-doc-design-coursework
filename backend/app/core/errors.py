@@ -1,7 +1,11 @@
+from collections.abc import Mapping
+from typing import ClassVar
+
+
 class AppError(Exception):
     status_code: int = 400
     code: str = "bad_request"
-    headers: dict[str, str] | None = None
+    headers: ClassVar[Mapping[str, str] | None] = None
 
     def __init__(self, message: str, code: str | None = None) -> None:
         super().__init__(message)
@@ -13,7 +17,7 @@ class AppError(Exception):
 class UnauthorizedError(AppError):
     status_code = 401
     code = "unauthorized"
-    headers = {"WWW-Authenticate": "Bearer"}
+    headers: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
 
 
 class ForbiddenError(AppError):

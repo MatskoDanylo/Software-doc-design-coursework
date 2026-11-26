@@ -4,7 +4,10 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import OptionalUser, RecommendationServiceDep
 from app.schemas.recommendation import (
-    DEFAULT_RECOMMENDATIONS, MAX_RECOMMENDATIONS, RecommendationList, RecommendationRead,
+    DEFAULT_RECOMMENDATIONS,
+    MAX_RECOMMENDATIONS,
+    RecommendationList,
+    RecommendationRead,
 )
 
 router = APIRouter(tags=["recommendations"])

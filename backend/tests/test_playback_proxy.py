@@ -29,11 +29,13 @@ from tests.factories import add_season, make_title
 from tests.helpers import RecordingPublisher, assert_error, bearer
 
 MEDIA = Path(settings.media_dir)
-MASTER = MasterPlaylist.of([
-    Variant(640, 360, 900_000, "360p/index.m3u8", "avc1.64001f,mp4a.40.2"),
-    Variant(1280, 720, 3_000_000, "720p/index.m3u8", "avc1.64001f,mp4a.40.2"),
-    Variant(1920, 1080, 5_500_000, "1080p/index.m3u8", "avc1.640028,mp4a.40.2"),
-])
+MASTER = MasterPlaylist.of(
+    [
+        Variant(640, 360, 900_000, "360p/index.m3u8", "avc1.64001f,mp4a.40.2"),
+        Variant(1280, 720, 3_000_000, "720p/index.m3u8", "avc1.64001f,mp4a.40.2"),
+        Variant(1920, 1080, 5_500_000, "1080p/index.m3u8", "avc1.640028,mp4a.40.2"),
+    ]
+)
 FREE = PlaybackPolicy("free", max_height=720, ads_enabled=True)
 PREMIUM = PlaybackPolicy("premium", max_height=1080, ads_enabled=False)
 AD_URL = "/media/ads/preroll/master.m3u8"
@@ -147,8 +149,13 @@ def catalog() -> dict[str, int]:
         other = make_title(session, "Lost", kind=TitleKind.SERIES.value)
         episode = add_season(session, series, 1, ["Secrets"]).episodes[0]
         foreign = add_season(session, other, 1, ["Pilot"]).episodes[0]
-        ids = {"movie": movie.id, "empty": empty.id, "series": series.id, "episode": episode.id,
-               "foreign_episode": foreign.id}
+        ids = {
+            "movie": movie.id,
+            "empty": empty.id,
+            "series": series.id,
+            "episode": episode.id,
+            "foreign_episode": foreign.id,
+        }
     ids["asset"] = add_asset(title_id=ids["movie"])
     ids["episode_asset"] = add_asset(episode_id=ids["episode"])
     return ids
@@ -220,8 +227,14 @@ def test_expired_subscription_falls_back_to_free(
         user = UserRepository(session).get_by_email("user@example.com")
         premium = PlanRepository(session).get_by_code(PlanCode.PREMIUM)
         assert user is not None and premium is not None
-        session.add(Subscription(user_id=user.id, plan_id=premium.id, status="active",
-                                 expires_at=datetime.now(UTC) - timedelta(minutes=1)))
+        session.add(
+            Subscription(
+                user_id=user.id,
+                plan_id=premium.id,
+                status="active",
+                expires_at=datetime.now(UTC) - timedelta(minutes=1),
+            )
+        )
 
     body = playback(client, catalog["movie"], viewer)
 
@@ -302,8 +315,13 @@ def test_episode_playback(client: TestClient, viewer: dict[str, str], catalog: d
     ],
 )
 def test_playback_errors(
-    client: TestClient, viewer: dict[str, str], catalog: dict[str, int],
-    title: str, params: dict[str, str], status: int, code: str,
+    client: TestClient,
+    viewer: dict[str, str],
+    catalog: dict[str, int],
+    title: str,
+    params: dict[str, str],
+    status: int,
+    code: str,
 ) -> None:
     title_id = catalog.get(title, 999)
     query = {key: catalog[value] for key, value in params.items()}
@@ -348,8 +366,15 @@ def test_resume_position_comes_from_unfinished_history(
     with SessionLocal() as session, session.begin():
         user = UserRepository(session).get_by_email("user@example.com")
         assert user is not None
-        session.add(WatchHistory(user_id=user.id, title_id=catalog["series"], episode_id=catalog["episode"],
-                                 progress_sec=125, finished=finished))
+        session.add(
+            WatchHistory(
+                user_id=user.id,
+                title_id=catalog["series"],
+                episode_id=catalog["episode"],
+                progress_sec=125,
+                finished=finished,
+            )
+        )
 
     body = playback(client, catalog["series"], viewer, episode_id=catalog["episode"])
 

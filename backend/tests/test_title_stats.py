@@ -90,8 +90,9 @@ def test_repeated_completion_by_the_same_user_counts_once_as_viewer(
 
     assert stats(catalog["heat"]) == (1, 2)
 
-    put_progress(client, headers_for(client, "second@example.com"),
-                 title_id=catalog["heat"], progress_sec=5400, finished=True)
+    put_progress(
+        client, headers_for(client, "second@example.com"), title_id=catalog["heat"], progress_sec=5400, finished=True
+    )
 
     assert stats(catalog["heat"]) == (2, 3)
 
@@ -100,8 +101,14 @@ def test_series_episodes_of_one_user_add_completions_but_one_viewer(
     client: TestClient, user_headers: dict[str, str], catalog: dict[str, int]
 ) -> None:
     for episode in ("e1", "e2"):
-        put_progress(client, user_headers, title_id=catalog["dark"], episode_id=catalog[episode],
-                     progress_sec=3000, finished=True)
+        put_progress(
+            client,
+            user_headers,
+            title_id=catalog["dark"],
+            episode_id=catalog[episode],
+            progress_sec=3000,
+            finished=True,
+        )
 
     assert stats(catalog["dark"]) == (1, 2)
 
@@ -110,12 +117,20 @@ def test_rebuild_matches_incremental_stats(
     client: TestClient, user_headers: dict[str, str], catalog: dict[str, int]
 ) -> None:
     put_progress(client, user_headers, title_id=catalog["heat"], progress_sec=5400, finished=True)
-    put_progress(client, user_headers, title_id=catalog["dark"], episode_id=catalog["e1"],
-                 progress_sec=3000, finished=True)
-    put_progress(client, user_headers, title_id=catalog["dark"], episode_id=catalog["e2"],
-                 progress_sec=3000, finished=True)
-    put_progress(client, headers_for(client, "second@example.com"),
-                 title_id=catalog["dark"], episode_id=catalog["e1"], progress_sec=3000, finished=True)
+    put_progress(
+        client, user_headers, title_id=catalog["dark"], episode_id=catalog["e1"], progress_sec=3000, finished=True
+    )
+    put_progress(
+        client, user_headers, title_id=catalog["dark"], episode_id=catalog["e2"], progress_sec=3000, finished=True
+    )
+    put_progress(
+        client,
+        headers_for(client, "second@example.com"),
+        title_id=catalog["dark"],
+        episode_id=catalog["e1"],
+        progress_sec=3000,
+        finished=True,
+    )
     incremental = all_stats()
 
     with SessionLocal() as session, session.begin():
@@ -145,8 +160,9 @@ def test_rebuild_drops_stale_rows_and_ignores_unfinished_history() -> None:
         assert len(viewers) == 2 and all(title_id != alien_id for title_id, _ in viewers)
 
 
-def test_rebuilt_viewers_keep_later_completions_idempotent(client: TestClient, user_headers: dict[str, str],
-                                                           catalog: dict[str, int]) -> None:
+def test_rebuilt_viewers_keep_later_completions_idempotent(
+    client: TestClient, user_headers: dict[str, str], catalog: dict[str, int]
+) -> None:
     put_progress(client, user_headers, title_id=catalog["heat"], progress_sec=5400, finished=True)
     with SessionLocal() as session, session.begin():
         TitleStatsService(TitleStatsRepository(session)).rebuild()

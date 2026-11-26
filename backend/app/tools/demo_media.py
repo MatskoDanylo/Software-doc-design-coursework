@@ -67,15 +67,39 @@ class DemoClipGenerator:
         ]
         if self.font_file:
             drawtext.insert(0, f"fontfile={drawtext_path(self.font_file)}")
-        run_ffmpeg([
-            self.ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-            "-f", "lavfi", "-i", f"testsrc2=size={size}:rate=25:duration={duration}",
-            "-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}",
-            "-vf", "drawtext=" + ":".join(drawtext),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-shortest",
-            str(target),
-        ], self.timeout_sec)
+        run_ffmpeg(
+            [
+                self.ffmpeg_path,
+                "-hide_banner",
+                "-nostdin",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"testsrc2=size={size}:rate=25:duration={duration}",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency=440:duration={duration}",
+                "-vf",
+                "drawtext=" + ":".join(drawtext),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(target),
+            ],
+            self.timeout_sec,
+        )
         return target
 
 
@@ -102,8 +126,11 @@ def _is_ready(asset: VideoAsset | None) -> bool:
 def upload_demo_source(target: DemoTarget, clip: Path, store: LocalVideoStore) -> int:
     with SessionLocal() as session, session.begin(), clip.open("rb") as stream:
         uploads = VideoUploadService(
-            TitleRepository(session), EpisodeRepository(session), VideoAssetRepository(session),
-            store, DEMO_SOURCE_MAX_BYTES,
+            TitleRepository(session),
+            EpisodeRepository(session),
+            VideoAssetRepository(session),
+            store,
+            DEMO_SOURCE_MAX_BYTES,
         )
         upload = uploads.upload_for_title if target.kind == "title" else uploads.upload_for_episode
         return upload(target.owner_id, stream, clip.name).id

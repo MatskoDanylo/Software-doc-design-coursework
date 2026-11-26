@@ -34,7 +34,11 @@ def test_json_report_uses_timezone_from_settings(
 ) -> None:
     body = report(client, admin_headers, "user-activity", **PERIOD)
 
-    assert (body["kind"], body["title"], body["timezone"]) == ("user-activity", "Активність користувачів", "Europe/Kyiv")
+    assert (body["kind"], body["title"], body["timezone"]) == (
+        "user-activity",
+        "Активність користувачів",
+        "Europe/Kyiv",
+    )
     assert (body["date_from"], body["date_to"], body["group_by"]) == ("2026-11-10", "2026-11-11", "day")
     assert registrations(body) == {"2026-11-10": 0, "2026-11-11": 1}
     assert body["summary"][0] == {"key": "new_users", "label": "Нових користувачів", "value": 1}
@@ -42,8 +46,10 @@ def test_json_report_uses_timezone_from_settings(
 
     settings = client.get("/api/admin/settings", headers=admin_headers).json()
     update = {k: settings[k] for k in ("recommendation_default_strategy", "hybrid_weights", "popularity_window_days")}
-    assert client.put("/api/admin/settings", json=update | {"report_timezone": "UTC"},
-                      headers=admin_headers).status_code == 200
+    assert (
+        client.put("/api/admin/settings", json=update | {"report_timezone": "UTC"}, headers=admin_headers).status_code
+        == 200
+    )
 
     body = report(client, admin_headers, "user-activity", **PERIOD)
     assert body["timezone"] == "UTC"
@@ -60,21 +66,23 @@ def test_every_report_has_defaults(client: TestClient, admin_headers: dict[str, 
 
 
 def test_monthly_grouping_via_query(client: TestClient, admin_headers: dict[str, str], late_signup: None) -> None:
-    body = report(client, admin_headers, "user-activity", date_from="2026-10-01", date_to="2026-11-30",
-                  group_by="month")
+    body = report(
+        client, admin_headers, "user-activity", date_from="2026-10-01", date_to="2026-11-30", group_by="month"
+    )
 
     assert registrations(body) == {"2026-10-01": 0, "2026-11-01": 1}
 
 
 def test_csv_export(client: TestClient, admin_headers: dict[str, str], late_signup: None) -> None:
-    r = client.get("/api/admin/reports/subscription-revenue", headers=admin_headers,
-                   params={"date_from": "2026-11-01", "date_to": "2026-11-30", "format": "csv"})
+    r = client.get(
+        "/api/admin/reports/subscription-revenue",
+        headers=admin_headers,
+        params={"date_from": "2026-11-01", "date_to": "2026-11-30", "format": "csv"},
+    )
 
     assert r.status_code == 200, r.text
     assert r.headers["content-type"] == "text/csv; charset=utf-8"
-    assert r.headers["content-disposition"] == (
-        'attachment; filename="subscription-revenue_2026-11-01_2026-11-30.csv"'
-    )
+    assert r.headers["content-disposition"] == ('attachment; filename="subscription-revenue_2026-11-01_2026-11-30.csv"')
     assert r.content.startswith(b"\xef\xbb\xbf")
     lines = r.content.decode("utf-8-sig").split("\r\n")
     assert lines[0] == "Доходи від підписок"
@@ -84,14 +92,27 @@ def test_csv_export(client: TestClient, admin_headers: dict[str, str], late_sign
     assert "Статус;Кількість" in lines
 
 
-@pytest.mark.parametrize(("path", "params", "status", "code"), [
-    ("/api/admin/reports/cohorts", {}, 404, "unknown_report"),
-    ("/api/admin/reports/user-activity", {"date_from": "2026-11-02", "date_to": "2026-11-01"}, 422, "invalid_period"),
-    ("/api/admin/reports/user-activity", {"date_from": "2024-01-01", "date_to": "2026-01-01"}, 422, "period_too_long"),
-    ("/api/admin/reports/user-activity", {"group_by": "week"}, 422, "validation_error"),
-    ("/api/admin/reports/user-activity", {"format": "xml"}, 422, "validation_error"),
-    ("/api/admin/reports/user-activity", {"date_from": "yesterday"}, 422, "validation_error"),
-])
+@pytest.mark.parametrize(
+    ("path", "params", "status", "code"),
+    [
+        ("/api/admin/reports/cohorts", {}, 404, "unknown_report"),
+        (
+            "/api/admin/reports/user-activity",
+            {"date_from": "2026-11-02", "date_to": "2026-11-01"},
+            422,
+            "invalid_period",
+        ),
+        (
+            "/api/admin/reports/user-activity",
+            {"date_from": "2024-01-01", "date_to": "2026-01-01"},
+            422,
+            "period_too_long",
+        ),
+        ("/api/admin/reports/user-activity", {"group_by": "week"}, 422, "validation_error"),
+        ("/api/admin/reports/user-activity", {"format": "xml"}, 422, "validation_error"),
+        ("/api/admin/reports/user-activity", {"date_from": "yesterday"}, 422, "validation_error"),
+    ],
+)
 def test_report_errors(
     client: TestClient, admin_headers: dict[str, str], path: str, params: dict[str, str], status: int, code: str
 ) -> None:
@@ -109,5 +130,9 @@ def test_dashboard(client: TestClient, admin_headers: dict[str, str], late_signu
 
     assert r.status_code == 200, r.text
     assert r.json() == {
-        "total_users": 1, "active_users_7d": 0, "active_premium": 0, "revenue_30d": 0.0, "titles_with_video": 0,
+        "total_users": 1,
+        "active_users_7d": 0,
+        "active_premium": 0,
+        "revenue_30d": 0.0,
+        "titles_with_video": 0,
     }

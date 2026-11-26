@@ -9,8 +9,21 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import hash_password
 from app.models import (
-    Episode, Favorite, Payment, PaymentStatus, Plan, PlanCode, Profile, Role, Season, Subscription, SubscriptionStatus,
-    Title, User, VideoStatus, WatchHistory,
+    Episode,
+    Favorite,
+    Payment,
+    PaymentStatus,
+    Plan,
+    PlanCode,
+    Profile,
+    Role,
+    Season,
+    Subscription,
+    SubscriptionStatus,
+    Title,
+    User,
+    VideoStatus,
+    WatchHistory,
 )
 from app.repositories.title_stats_repository import TitleStatsRepository
 from app.services.ports import StatsTotals
@@ -25,15 +38,52 @@ PREMIUM_DAYS = 30
 PAYER_EVERY = 3
 
 FIRST_NAMES = (
-    "Олена", "Андрій", "Марія", "Тарас", "Ірина", "Богдан", "Софія", "Дмитро", "Наталія", "Остап",
-    "Юлія", "Максим", "Катерина", "Василь", "Оксана", "Ярослав", "Дарина", "Роман", "Христина", "Назар",
+    "Олена",
+    "Андрій",
+    "Марія",
+    "Тарас",
+    "Ірина",
+    "Богдан",
+    "Софія",
+    "Дмитро",
+    "Наталія",
+    "Остап",
+    "Юлія",
+    "Максим",
+    "Катерина",
+    "Василь",
+    "Оксана",
+    "Ярослав",
+    "Дарина",
+    "Роман",
+    "Христина",
+    "Назар",
 )
 LAST_NAMES = (
-    "Коваленко", "Шевчук", "Бондар", "Мельник", "Ткачук", "Кравець", "Олійник", "Лисенко", "Гнатюк", "Савчук",
+    "Коваленко",
+    "Шевчук",
+    "Бондар",
+    "Мельник",
+    "Ткачук",
+    "Кравець",
+    "Олійник",
+    "Лисенко",
+    "Гнатюк",
+    "Савчук",
 )
 GENRE_POPULARITY = {
-    "Драма": 5, "Фантастика": 5, "Комедія": 4, "Трилер": 4, "Бойовик": 3, "Кримінал": 3,
-    "Пригоди": 3, "Детектив": 2, "Мелодрама": 2, "Анімація": 2, "Історичний": 1, "Жахи": 1,
+    "Драма": 5,
+    "Фантастика": 5,
+    "Комедія": 4,
+    "Трилер": 4,
+    "Бойовик": 3,
+    "Кримінал": 3,
+    "Пригоди": 3,
+    "Детектив": 2,
+    "Мелодрама": 2,
+    "Анімація": 2,
+    "Історичний": 1,
+    "Жахи": 1,
 }
 MOVIE_MINUTES = (95, 150)
 EPISODE_MINUTES = (40, 58)
@@ -79,14 +129,16 @@ class _Generator:
         self.subscriptions: list[Subscription] = []
 
     def _load_titles(self) -> list[Title]:
-        titles = list(self.session.scalars(
-            select(Title)
-            .options(
-                selectinload(Title.video),
-                selectinload(Title.seasons).selectinload(Season.episodes).selectinload(Episode.video),
+        titles = list(
+            self.session.scalars(
+                select(Title)
+                .options(
+                    selectinload(Title.video),
+                    selectinload(Title.seasons).selectinload(Season.episodes).selectinload(Episode.video),
+                )
+                .order_by(Title.id)
             )
-            .order_by(Title.id)
-        ))
+        )
         if not titles:
             raise RuntimeError("Demo activity needs a catalog; run `python -m app.seed --demo` first")
         return titles
@@ -144,14 +196,16 @@ class _Generator:
             EPISODE_MINUTES if episode is not None else MOVIE_MINUTES,
         )
         progress = duration if finished else max(30, int(duration * self.rng.uniform(0.1, 0.9)))
-        self.history.append(WatchHistory(
-            user_id=viewer.user.id,
-            title_id=title.id,
-            episode_id=episode.id if episode else None,
-            progress_sec=progress,
-            finished=finished,
-            last_watched=at,
-        ))
+        self.history.append(
+            WatchHistory(
+                user_id=viewer.user.id,
+                title_id=title.id,
+                episode_id=episode.id if episode else None,
+                progress_sec=progress,
+                finished=finished,
+                last_watched=at,
+            )
+        )
 
     def watch(self, viewer: _Viewer) -> None:
         tenure_days = (self.now - viewer.registered_at).days
@@ -162,7 +216,7 @@ class _Generator:
             if not episodes:
                 self._entry(viewer, title, None, started, self.rng.random() < 0.6)
                 continue
-            watched = episodes[:self.rng.randint(1, min(len(episodes), 6))]
+            watched = episodes[: self.rng.randint(1, min(len(episodes), 6))]
             at = started
             for number, episode in enumerate(watched, start=1):
                 last = number == len(watched)
@@ -172,9 +226,11 @@ class _Generator:
     def favorite(self, viewer: _Viewer) -> None:
         liked = list(dict.fromkeys(t for g in viewer.genres for t in self.by_genre.get(g, [])))
         for title in self.rng.sample(liked, min(len(liked), self.rng.randint(1, 4))):
-            self.favorites.append(Favorite(
-                user_id=viewer.user.id, title_id=title.id, added_at=self._between(viewer.registered_at, self.now)
-            ))
+            self.favorites.append(
+                Favorite(
+                    user_id=viewer.user.id, title_id=title.id, added_at=self._between(viewer.registered_at, self.now)
+                )
+            )
 
     def _payment(self, viewer: _Viewer, plan: Plan, status: PaymentStatus, created_at: datetime) -> Payment:
         number = len(self.payments) + 1
@@ -196,8 +252,9 @@ class _Generator:
             self._payment(viewer, plan, PaymentStatus.FAILED, self._between(viewer.registered_at, self.now))
         if index % PAYER_EVERY and self.rng.random() >= 0.05:
             if self.rng.random() < 0.15:
-                self._payment(viewer, plan, PaymentStatus.PENDING,
-                              self._between(self.now - timedelta(days=7), self.now))
+                self._payment(
+                    viewer, plan, PaymentStatus.PENDING, self._between(self.now - timedelta(days=7), self.now)
+                )
             return
         first = viewer.registered_at + timedelta(days=self.rng.uniform(0, 5), hours=self.rng.uniform(1, 12))
         renewals = 0
@@ -207,13 +264,15 @@ class _Generator:
         if not renewals:
             return
         expires_at = first + timedelta(days=PREMIUM_DAYS * renewals)
-        self.subscriptions.append(Subscription(
-            user_id=viewer.user.id,
-            plan_id=plan.id,
-            status=(SubscriptionStatus.ACTIVE if expires_at > self.now else SubscriptionStatus.EXPIRED).value,
-            started_at=first,
-            expires_at=expires_at,
-        ))
+        self.subscriptions.append(
+            Subscription(
+                user_id=viewer.user.id,
+                plan_id=plan.id,
+                status=(SubscriptionStatus.ACTIVE if expires_at > self.now else SubscriptionStatus.EXPIRED).value,
+                started_at=first,
+                expires_at=expires_at,
+            )
+        )
 
     @staticmethod
     def _midday(entry: WatchHistory) -> bool:
@@ -229,7 +288,8 @@ class _Generator:
             noon = datetime.combine(day, time(12), UTC)
             eligible = {v.user.id for v in viewers if v.registered_at <= noon}
             movable = [
-                e for e in self.history
+                e
+                for e in self.history
                 if e.user_id in eligible and (not self._midday(e) or covered[e.last_watched.date()] > 1)
             ]
             entry = self.rng.choice(movable)

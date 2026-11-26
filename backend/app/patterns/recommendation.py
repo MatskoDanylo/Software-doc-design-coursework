@@ -67,7 +67,9 @@ class RecommendationSource(Protocol):
 
     def features(self, title_ids: Collection[int]) -> Mapping[int, TitleFeatures]: ...
 
-    def candidates(self, genre_ids: Collection[int], exclude: Collection[int], limit: int) -> Sequence[TitleFeatures]: ...
+    def candidates(
+        self, genre_ids: Collection[int], exclude: Collection[int], limit: int
+    ) -> Sequence[TitleFeatures]: ...
 
     def similar_candidates(
         self, seed: TitleFeatures, exclude: Collection[int], limit: int
@@ -77,7 +79,7 @@ class RecommendationSource(Protocol):
 
 
 def top_scored(items: Iterable[ScoredTitle], limit: int) -> list[ScoredTitle]:
-    return sorted(items, key=lambda item: (-item.score, item.title_id))[:max(limit, 0)]
+    return sorted(items, key=lambda item: (-item.score, item.title_id))[: max(limit, 0)]
 
 
 class RecommendationStrategy(ABC):
@@ -117,16 +119,20 @@ class PopularityStrategy(RecommendationStrategy):
         since = self.clock() - timedelta(days=self.window_days)
         rows = [r for r in self.source.popular(since, context.watched, limit) if r.title_id not in context.watched]
         rows = sorted(rows, key=self._rank)[:limit]
-        return [
-            ScoredTitle(row.title_id, 1 - index / len(rows), self._reason(row))
-            for index, row in enumerate(rows)
-        ]
+        return [ScoredTitle(row.title_id, 1 - index / len(rows), self._reason(row)) for index, row in enumerate(rows)]
 
     @staticmethod
     def _rank(row: PopularTitle) -> tuple[int, int, int, int, int, float, int]:
         tier = 0 if row.window_viewers > 0 else 1 if row.total_viewers > 0 else 2
-        return (tier, -row.window_viewers, -row.window_completions, -row.total_viewers, -row.total_completions,
-                -row.rating, row.title_id)
+        return (
+            tier,
+            -row.window_viewers,
+            -row.window_completions,
+            -row.total_viewers,
+            -row.total_completions,
+            -row.rating,
+            row.title_id,
+        )
 
     def _reason(self, row: PopularTitle) -> str:
         if row.window_viewers > 0:
@@ -188,11 +194,13 @@ class GenreAffinityStrategy(RecommendationStrategy):
                 continue
             affinity = sum(weights[g] for g in shared)
             top_genre = max(shared, key=lambda g: (weights[g], -g))
-            scored.append(ScoredTitle(
-                candidate.id,
-                self.AFFINITY_SHARE * affinity + self.RATING_SHARE * candidate.rating / 10,
-                self._reason(names.get(top_genre, ""), top_genre in taste.watched_genres),
-            ))
+            scored.append(
+                ScoredTitle(
+                    candidate.id,
+                    self.AFFINITY_SHARE * affinity + self.RATING_SHARE * candidate.rating / 10,
+                    self._reason(names.get(top_genre, ""), top_genre in taste.watched_genres),
+                )
+            )
         return top_scored(scored, limit)
 
     @staticmethod
@@ -299,11 +307,13 @@ class StrategyRegistry:
 
 
 def _hybrid(env: StrategyEnv) -> HybridStrategy:
-    return HybridStrategy([
-        (env.create(code), weight)
-        for code, weight in env.config.hybrid_weights.items()
-        if code != HybridStrategy.code
-    ])
+    return HybridStrategy(
+        [
+            (env.create(code), weight)
+            for code, weight in env.config.hybrid_weights.items()
+            if code != HybridStrategy.code
+        ]
+    )
 
 
 def default_strategy_registry() -> StrategyRegistry:

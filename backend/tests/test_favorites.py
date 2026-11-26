@@ -13,8 +13,10 @@ from tests.helpers import PASSWORD, assert_error, bearer, login, register
 @pytest.fixture
 def titles() -> dict[str, int]:
     with SessionLocal() as session, session.begin():
-        return {name: make_title(session, name, rating=rating).id
-                for name, rating in (("Heat", 8.3), ("Ronin", 7.2), ("Alien", 8.5))}
+        return {
+            name: make_title(session, name, rating=rating).id
+            for name, rating in (("Heat", 8.3), ("Ronin", 7.2), ("Alien", 8.5))
+        }
 
 
 def favorites(client: TestClient, headers: dict[str, str], **params: int) -> dict[str, Any]:
@@ -42,7 +44,16 @@ def test_add_favorite_is_idempotent(client: TestClient, user_headers: dict[str, 
     assert (names(page), page["total"]) == (["Heat"], 1)
     assert page["items"][0]["is_favorite"] is True
     assert set(page["items"][0]) == {
-        "id", "kind", "name", "description", "year", "country", "rating", "poster_url", "genres", "is_favorite",
+        "id",
+        "kind",
+        "name",
+        "description",
+        "year",
+        "country",
+        "rating",
+        "poster_url",
+        "genres",
+        "is_favorite",
     }
 
 
@@ -85,8 +96,9 @@ def test_unknown_title_returns_404(client: TestClient, user_headers: dict[str, s
     assert_error(client.post("/api/favorites/999", headers=user_headers), 404, "title_not_found")
 
 
-@pytest.mark.parametrize(("method", "path"), [("GET", "/api/favorites"), ("POST", "/api/favorites/1"),
-                                              ("DELETE", "/api/favorites/1")])
+@pytest.mark.parametrize(
+    ("method", "path"), [("GET", "/api/favorites"), ("POST", "/api/favorites/1"), ("DELETE", "/api/favorites/1")]
+)
 def test_favorites_require_authentication(client: TestClient, method: str, path: str) -> None:
     assert_error(client.request(method, path), 401, "unauthorized")
 

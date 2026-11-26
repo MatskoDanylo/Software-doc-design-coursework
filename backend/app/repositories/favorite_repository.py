@@ -33,6 +33,8 @@ class FavoriteRepository:
         ids = list(title_ids)
         if not ids:
             return set()
-        return set(self.session.scalars(
-            select(Favorite.title_id).where(Favorite.user_id == user_id, Favorite.title_id.in_(ids))
-        ))
+        return set(
+            self.session.scalars(
+                select(Favorite.title_id).where(Favorite.user_id == user_id, Favorite.title_id.in_(ids))
+            )
+        )

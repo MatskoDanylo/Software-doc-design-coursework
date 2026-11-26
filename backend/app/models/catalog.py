@@ -50,8 +50,11 @@ class Title(Base):
         back_populates="title", cascade="all, delete-orphan", passive_deletes=True, order_by="Season.number"
     )
     video: Mapped["VideoAsset | None"] = relationship(
-        back_populates="title", uselist=False, foreign_keys="VideoAsset.title_id",
-        cascade="all, delete-orphan", passive_deletes=True,
+        back_populates="title",
+        uselist=False,
+        foreign_keys="VideoAsset.title_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
@@ -80,16 +83,17 @@ class Episode(Base):
 
     season: Mapped[Season] = relationship(back_populates="episodes")
     video: Mapped["VideoAsset | None"] = relationship(
-        back_populates="episode", uselist=False, foreign_keys="VideoAsset.episode_id",
-        cascade="all, delete-orphan", passive_deletes=True,
+        back_populates="episode",
+        uselist=False,
+        foreign_keys="VideoAsset.episode_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
 class VideoAsset(Base):
     __tablename__ = "video_assets"
-    __table_args__ = (
-        CheckConstraint("(title_id IS NULL) <> (episode_id IS NULL)", name="single_owner"),
-    )
+    __table_args__ = (CheckConstraint("(title_id IS NULL) <> (episode_id IS NULL)", name="single_owner"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title_id: Mapped[int | None] = mapped_column(ForeignKey("titles.id", ondelete="CASCADE"), unique=True)

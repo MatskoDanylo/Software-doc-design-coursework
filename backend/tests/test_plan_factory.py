@@ -20,8 +20,9 @@ from tests.helpers import RecordingPublisher
 from tests.test_playback_proxy import AD_URL, FREE, PREMIUM, VIEWER, FakeRealPlayback, FixedAds, proxy
 
 FREE_PLAN = Plan(id=1, code="free", name="Free", price_month=Decimal("0.00"), ads_enabled=True, max_height=720)
-PREMIUM_PLAN = Plan(id=2, code="premium", name="Premium", price_month=Decimal("99.00"), ads_enabled=False,
-                    max_height=1080)
+PREMIUM_PLAN = Plan(
+    id=2, code="premium", name="Premium", price_month=Decimal("99.00"), ads_enabled=False, max_height=1080
+)
 
 
 class FakePlans:
@@ -52,7 +53,10 @@ def test_free_creator_builds_free_policy_from_plan_row() -> None:
     assert isinstance(policy, FreePlanPolicy)
     assert (policy.plan_code, policy.name, policy.max_height) == ("free", "Free", 720)
     assert (policy.ads_enabled, policy.price, policy.duration_days, policy.is_purchasable) == (
-        True, Decimal("0.00"), None, False,
+        True,
+        Decimal("0.00"),
+        None,
+        False,
     )
 
 
@@ -152,9 +156,7 @@ def test_registry_rejects_unknown_plan_code() -> None:
 
 
 @pytest.mark.parametrize(("active_plan", "fixed"), [(None, FREE), (PREMIUM_PLAN, PREMIUM)])
-def test_proxy_with_factory_backed_policies_behaves_as_before(
-    active_plan: Plan | None, fixed: PlaybackPolicy
-) -> None:
+def test_proxy_with_factory_backed_policies_behaves_as_before(active_plan: Plan | None, fixed: PlaybackPolicy) -> None:
     service = subscription_service(active_plan)
     reference, _ = proxy(fixed)
     factory_backed = PlaybackProxy(FakeRealPlayback(), service, FixedAds(AD_URL))

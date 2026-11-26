@@ -64,9 +64,7 @@ def _demo_title(session: Session, name: str) -> Title:
 
 
 def _catalog_counts(session: Session) -> tuple[int, ...]:
-    return tuple(
-        session.scalar(select(func.count()).select_from(model)) for model in (Genre, Title, Season, Episode)
-    )
+    return tuple(session.scalar(select(func.count()).select_from(model)) for model in (Genre, Title, Season, Episode))
 
 
 def test_demo_data_is_consistent() -> None:

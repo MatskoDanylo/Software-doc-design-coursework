@@ -4,7 +4,17 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from app.models import (
-    Episode, Genre, Notification, Payment, PaymentStatus, Plan, Season, Subscription, Title, TitleKind, VideoAsset,
+    Episode,
+    Genre,
+    Notification,
+    Payment,
+    PaymentStatus,
+    Plan,
+    Season,
+    Subscription,
+    Title,
+    TitleKind,
+    VideoAsset,
     WatchHistory,
 )
 
