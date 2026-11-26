@@ -31,6 +31,7 @@ export function useMarkNotificationRead() {
     mutationFn: notificationsApi.markRead,
     onSuccess: ({ id }) => client.setQueryData(notificationsKeys.inbox, (inbox?: NotificationInbox) => markOne(inbox, id)),
     onSettled: () => client.invalidateQueries({ queryKey: notificationsKeys.inbox }),
+    meta: { errorToast: true },
   })
 }
 
@@ -40,5 +41,6 @@ export function useMarkAllNotificationsRead() {
     mutationFn: notificationsApi.markAllRead,
     onSuccess: () => client.setQueryData(notificationsKeys.inbox, markAll),
     onSettled: () => client.invalidateQueries({ queryKey: notificationsKeys.inbox }),
+    meta: { errorToast: true },
   })
 }

@@ -9,10 +9,12 @@ import FormAlert from '../components/FormAlert'
 import FormField from '../components/FormField'
 import { buttonPrimary, textLink } from '../components/ui'
 import { useFormState } from '../components/useFormState'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const initialValues: RegisterValues = { email: '', display_name: '', password: '', confirm_password: '' }
 
 export default function RegisterPage() {
+  useDocumentTitle('Реєстрація')
   const { register } = useAuth()
   const location = useLocation()
   const form = useFormState(initialValues)
@@ -33,7 +35,7 @@ export default function RegisterPage() {
   return (
     <AuthCard
       title="Реєстрація"
-      subtitle="Створіть акаунт — план Free доступний одразу"
+      subtitle="Створіть акаунт — безкоштовний план доступний одразу"
       footer={
         <>
           Вже маєте акаунт?{' '}
@@ -45,11 +47,11 @@ export default function RegisterPage() {
     >
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
         {mutation.isError && <FormAlert>{errorMessage(mutation.error)}</FormAlert>}
-        <FormField label="Email" type="email" autoComplete="email" {...form.bind('email')} />
+        <FormField label="Електронна пошта" type="email" autoComplete="email" {...form.bind('email')} />
         <FormField
           label="Імʼя"
           autoComplete="nickname"
-          hint="Необовʼязково, за замовчуванням — частина email"
+          hint="Необовʼязково, за замовчуванням — частина адреси пошти"
           {...form.bind('display_name')}
         />
         <FormField

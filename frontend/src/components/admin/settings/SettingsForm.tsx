@@ -27,13 +27,11 @@ export default function SettingsForm({ settings }: { settings: AppSettings }) {
   const save = useSaveSettings()
   const [draft, setDraft] = useState<SettingsDraft>(() => draftFromSettings(settings))
   const [errors, setErrors] = useState<SettingsErrors>({})
-  const [saved, setSaved] = useState(false)
   const strategies = settings.available_strategies.map((code) => ({ value: code, label: strategyLabel(code) }))
 
   const change = (patch: Partial<SettingsDraft>) => {
     setDraft((current) => ({ ...current, ...patch }))
     setErrors((current) => ({ ...current, ...Object.fromEntries(Object.keys(patch).map((key) => [key, undefined])) }))
-    setSaved(false)
   }
 
   const handleSubmit = (event: FormEvent) => {
@@ -42,10 +40,7 @@ export default function SettingsForm({ settings }: { settings: AppSettings }) {
     setErrors(problems)
     if (hasErrors(problems)) return
     save.mutate(toPayload(draft), {
-      onSuccess: (next) => {
-        setDraft(draftFromSettings(next))
-        setSaved(true)
-      },
+      onSuccess: (next) => setDraft(draftFromSettings(next)),
       onError: (error) => setErrors(serverSettingsErrors(error)),
     })
   }
@@ -87,11 +82,6 @@ export default function SettingsForm({ settings }: { settings: AppSettings }) {
         onChange={(event) => change({ timezone: event.target.value })}
       />
       {formError && <FormAlert>{formError}</FormAlert>}
-      {saved && (
-        <FormAlert tone="success">
-          Налаштування збережено. Рекомендації й звіти вже використовують нові значення.
-        </FormAlert>
-      )}
       <button type="submit" className={buttonPrimary} disabled={save.isPending}>
         {save.isPending ? 'Зберігаємо…' : 'Зберегти'}
       </button>

@@ -6,7 +6,9 @@ import InlineTextForm from './InlineTextForm'
 import SeasonEditor from './SeasonEditor'
 
 export default function SeasonsManager({ title }: { title: TitleDetail }) {
-  const create = useTitleMutation(title.id, (number: number) => adminCatalogApi.createSeason(title.id, { number }))
+  const create = useTitleMutation(title.id, (number: number) => adminCatalogApi.createSeason(title.id, { number }), {
+    successToast: 'Сезон додано',
+  })
   const number = nextNumber(title.seasons)
 
   return (

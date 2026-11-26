@@ -1,7 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { adminCatalogApi } from '../../api/adminCatalog'
-import { errorMessage } from '../../api/errors'
 import { useInvalidateCatalog } from '../../admin/useInvalidateCatalog'
 import type { Title } from '../../types/catalog'
 import Poster from '../catalog/Poster'
@@ -12,7 +11,11 @@ const KIND_LABEL = { movie: 'Фільм', series: 'Серіал' } as const
 
 export default function AdminTitleRow({ title }: { title: Title }) {
   const invalidate = useInvalidateCatalog()
-  const remove = useMutation({ mutationFn: () => adminCatalogApi.deleteTitle(title.id), onSuccess: () => invalidate() })
+  const remove = useMutation({
+    mutationFn: () => adminCatalogApi.deleteTitle(title.id),
+    onSuccess: () => invalidate(),
+    meta: { successToast: `«${title.name}» видалено`, errorToast: true },
+  })
 
   return (
     <tr className="align-middle">
@@ -22,9 +25,7 @@ export default function AdminTitleRow({ title }: { title: Title }) {
       <td className="py-2 pr-3">
         <Link to={`/admin/titles/${title.id}`} className="font-medium text-zinc-100 hover:text-gold">
           {title.name}
-        </Link>
-        {remove.isError && <p className="text-xs text-danger">{errorMessage(remove.error)}</p>}
-      </td>
+        </Link>      </td>
       <td className="py-2 pr-3 text-muted">{KIND_LABEL[title.kind]}</td>
       <td className="py-2 pr-3 text-muted">{title.year}</td>
       <td className="py-2 pr-3 text-muted">{title.country}</td>

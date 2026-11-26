@@ -82,7 +82,7 @@ describe('AdminTitleCreatePage', () => {
     submit()
 
     expect(await screen.findByText('Тайтл створено, постер завантажено')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Нова серія' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Нова серія' })).toBeInTheDocument()
     expect(currentUrl().pathname).toBe('/admin/titles/7')
 
     const [createCall] = callsTo(fetchMock, 'POST', '/api/admin/titles')

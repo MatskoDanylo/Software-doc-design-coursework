@@ -13,7 +13,7 @@ export default function ConversionCard({ report }: { report: Report }) {
 
   return (
     <section aria-label="Конверсія" className="rounded-2xl border border-line bg-surface p-5">
-      <h2 className="text-sm font-medium text-zinc-200">Конверсія free → premium</h2>
+      <h2 className="text-sm font-medium text-zinc-200">Конверсія: безкоштовний → Преміум</h2>
       <p className="mt-3 font-display text-4xl font-semibold tabular-nums">{formatNumber(conversion)}%</p>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-raised" aria-hidden="true">
         <div className="h-full rounded-full" style={{ width: `${Math.min(conversion, 100)}%`, background: SERIES_COLORS[0] }} />

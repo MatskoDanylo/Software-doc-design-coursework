@@ -8,7 +8,7 @@ import StatTile, { StatTileSkeleton } from '../StatTile'
 const KPIS: { key: keyof Dashboard; label: string; format: (value: number) => string }[] = [
   { key: 'total_users', label: 'Користувачів', format: formatNumber },
   { key: 'active_users_7d', label: 'Активних за 7 днів', format: formatNumber },
-  { key: 'active_premium', label: 'Активних Premium', format: formatNumber },
+  { key: 'active_premium', label: 'Активних Преміум-підписок', format: formatNumber },
   { key: 'revenue_30d', label: 'Дохід за 30 днів', format: formatMoney },
   { key: 'titles_with_video', label: 'Тайтлів з відео', format: formatNumber },
 ]

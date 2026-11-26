@@ -9,10 +9,12 @@ import FormAlert from '../components/FormAlert'
 import FormField from '../components/FormField'
 import { buttonPrimary, textLink } from '../components/ui'
 import { useFormState } from '../components/useFormState'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const initialValues: LoginValues = { email: '', password: '' }
 
 export default function LoginPage() {
+  useDocumentTitle('Вхід')
   const { login } = useAuth()
   const location = useLocation()
   const form = useFormState(initialValues)
@@ -41,7 +43,7 @@ export default function LoginPage() {
     >
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
         {mutation.isError && <FormAlert>{errorMessage(mutation.error)}</FormAlert>}
-        <FormField label="Email" type="email" autoComplete="email" {...form.bind('email')} />
+        <FormField label="Електронна пошта" type="email" autoComplete="email" {...form.bind('email')} />
         <FormField label="Пароль" type="password" autoComplete="current-password" {...form.bind('password')} />
         <button type="submit" disabled={mutation.isPending} className={`${buttonPrimary} w-full`}>
           {mutation.isPending ? 'Вхід…' : 'Увійти'}

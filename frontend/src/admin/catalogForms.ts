@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { catalogKeys } from '../api/catalog'
+import type { ToastMeta } from '../toast/mutationToasts'
 import { useInvalidateCatalog } from './useInvalidateCatalog'
 
 export const SEASON_MAX = 100
@@ -22,7 +23,11 @@ export function nextNumber(items: { number: number }[]): number {
   return items.reduce((max, item) => Math.max(max, item.number), 0) + 1
 }
 
-export function useTitleMutation<V>(titleId: number, mutationFn: (variables: V) => Promise<unknown>) {
+export function useTitleMutation<V>(
+  titleId: number,
+  mutationFn: (variables: V) => Promise<unknown>,
+  meta: ToastMeta,
+) {
   const invalidate = useInvalidateCatalog()
-  return useMutation({ mutationFn, onSuccess: () => invalidate([catalogKeys.title(titleId)]) })
+  return useMutation({ mutationFn, onSuccess: () => invalidate([catalogKeys.title(titleId)]), meta })
 }

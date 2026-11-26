@@ -86,7 +86,7 @@ describe('WatchPage', () => {
 
     const ad = await screen.findByRole('region', { name: 'Реклама' })
     expect(screen.queryByLabelText('Відеоплеєр')).not.toBeInTheDocument()
-    expect(screen.getByText('План: Free')).toBeInTheDocument()
+    expect(screen.getByText('План: Безкоштовний')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Преміум: до 1080p без реклами' })).toHaveAttribute('href', '/pricing')
 
     const skip = screen.getByRole('button', { name: 'Пропустити через 5' })
@@ -104,8 +104,8 @@ describe('WatchPage', () => {
 
     expect(await screen.findByLabelText('Відеоплеєр')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Реклама' })).not.toBeInTheDocument()
-    expect(screen.getByText('План: Premium')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Преміум/ })).not.toBeInTheDocument()
+    expect(screen.getByText('План: Преміум')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /до 1080p без реклами/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Якість')).toHaveDisplayValue('Авто (720p)')
   })
 

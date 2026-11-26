@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { adminCatalogApi } from '../../api/adminCatalog'
-import { errorMessage } from '../../api/errors'
 import { nextNumber, numberError, SEASON_MAX, useTitleMutation } from '../../admin/catalogForms'
 import type { EpisodePayload } from '../../types/adminCatalog'
 import type { Season } from '../../types/catalog'
@@ -16,7 +15,11 @@ interface SeasonEditorProps {
 }
 
 function AddEpisode({ titleId, season }: SeasonEditorProps) {
-  const create = useTitleMutation(titleId, (payload: EpisodePayload) => adminCatalogApi.createEpisode(season.id, payload))
+  const create = useTitleMutation(
+    titleId,
+    (payload: EpisodePayload) => adminCatalogApi.createEpisode(season.id, payload),
+    { successToast: 'Епізод додано' },
+  )
   const number = nextNumber(season.episodes)
 
   return (
@@ -33,7 +36,9 @@ function AddEpisode({ titleId, season }: SeasonEditorProps) {
 
 function SeasonHeader({ titleId, season }: SeasonEditorProps) {
   const [editing, setEditing] = useState(false)
-  const renumber = useTitleMutation(titleId, (number: number) => adminCatalogApi.updateSeason(season.id, { number }))
+  const renumber = useTitleMutation(titleId, (number: number) => adminCatalogApi.updateSeason(season.id, { number }), {
+    successToast: 'Номер сезону змінено',
+  })
 
   if (editing) {
     return (
@@ -62,7 +67,10 @@ function SeasonHeader({ titleId, season }: SeasonEditorProps) {
 }
 
 export default function SeasonEditor({ titleId, season }: SeasonEditorProps) {
-  const remove = useTitleMutation(titleId, () => adminCatalogApi.deleteSeason(season.id))
+  const remove = useTitleMutation(titleId, () => adminCatalogApi.deleteSeason(season.id), {
+    successToast: `Сезон ${season.number} видалено`,
+    errorToast: true,
+  })
 
   return (
     <section aria-label={`Сезон ${season.number}`} className="rounded-xl border border-line bg-screen">
@@ -74,9 +82,7 @@ export default function SeasonEditor({ titleId, season }: SeasonEditorProps) {
           pending={remove.isPending}
           onConfirm={() => remove.mutate(undefined)}
         />
-      </div>
-      {remove.isError && <p className="px-4 pb-2 text-xs text-danger">{errorMessage(remove.error)}</p>}
-      <ol className="divide-y divide-line border-y border-line">
+      </div>      <ol className="divide-y divide-line border-y border-line">
         {season.episodes.map((episode) => (
           <EpisodeRow key={episode.id} titleId={titleId} episode={episode} />
         ))}

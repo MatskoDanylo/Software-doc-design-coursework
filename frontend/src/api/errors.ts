@@ -1,8 +1,8 @@
 import { ApiError } from './client'
 
 const MESSAGES: Record<string, string> = {
-  email_taken: 'Користувач з таким email уже зареєстрований',
-  invalid_credentials: 'Невірний email або пароль',
+  email_taken: 'Користувач з такою електронною поштою вже зареєстрований',
+  invalid_credentials: 'Невірна електронна пошта або пароль',
   invalid_token: 'Сесія завершилась, увійдіть знову',
   unauthorized: 'Потрібно увійти в акаунт',
   forbidden: 'Недостатньо прав',
@@ -47,10 +47,24 @@ const MESSAGES: Record<string, string> = {
   period_too_long: 'Період задовгий. Для понад рік оберіть групування по місяцях',
   unknown_strategy: 'Невідома стратегія рекомендацій',
   unknown_timezone: 'Невідомий часовий пояс',
+  invalid_query: 'Некоректні параметри пошуку',
+  invalid_outcome: 'Очікуваний платіж можна лише підтвердити або відхилити',
+  not_a_movie: 'Для серіалу відео завантажується до кожного епізоду',
+  video_asset_not_found: 'Відеофайл не знайдено',
+  video_processing: 'Попереднє відео ще обробляється. Дочекайтесь завершення',
+  conflict: 'Дію не виконано: дані вже змінилися. Оновіть сторінку',
+  unprocessable: 'Сервер не може обробити ці дані',
+  bad_gateway: 'Зовнішній сервіс недоступний. Спробуйте пізніше',
+}
+
+function fallbackMessage(status: number): string {
+  if (status >= 500) return 'Помилка на сервері. Спробуйте пізніше'
+  if (status === 404) return MESSAGES.not_found
+  return 'Запит не виконано. Перевірте дані й спробуйте ще раз'
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return MESSAGES[error.code] ?? error.message
+  if (error instanceof ApiError) return MESSAGES[error.code] ?? fallbackMessage(error.status)
   return 'Сталася невідома помилка'
 }
 

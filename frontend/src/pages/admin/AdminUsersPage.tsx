@@ -3,9 +3,10 @@ import { ADMIN_USERS_PAGE_SIZE } from '../../api/adminBilling'
 import { errorMessage } from '../../api/errors'
 import { parsePage, useAdminUsers } from '../../admin/billing'
 import AdminUserRow from '../../components/admin/users/AdminUserRow'
-import PageLoader from '../../components/PageLoader'
+import { TableSkeleton } from '../../components/Skeletons'
 import StateMessage from '../../components/StateMessage'
 import { buttonGhost, buttonSmall } from '../../components/ui'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 const HEADERS = ['Користувач', 'Роль', 'Реєстрація', 'Підписка']
 
@@ -25,6 +26,7 @@ function Pager({ page, hasNext, onChange }: { page: number; hasNext: boolean; on
 }
 
 export default function AdminUsersPage() {
+  useDocumentTitle('Користувачі — Адмінка')
   const [params, setParams] = useSearchParams()
   const page = parsePage(params.get('page'))
   const query = useAdminUsers(page)
@@ -35,12 +37,15 @@ export default function AdminUsersPage() {
       <div>
         <h1 className="font-display text-3xl font-semibold">Користувачі</h1>
         <p className="mt-1 text-sm text-muted">
-          Видача Premium без оплати. Порожнє поле днів означає тривалість тарифу; результат зʼявиться в рядку.
+          Видача Преміуму без оплати. Порожнє поле днів означає тривалість тарифу.
         </p>
       </div>
-      {query.isPending && <PageLoader />}
+      {query.isPending && <TableSkeleton columns={4} />}
       {query.isError && <StateMessage tone="error" title="Не вдалося завантажити користувачів" text={errorMessage(query.error)} />}
-      {query.data && (
+      {query.data?.length === 0 && (
+        <StateMessage title="Користувачів не знайдено" text={page > 1 ? 'На цій сторінці нікого немає' : undefined} />
+      )}
+      {query.data && query.data.length > 0 && (
         <div className="space-y-6">
           <div className="overflow-x-auto">
             <table className={`w-full text-left text-sm ${query.isPlaceholderData ? 'opacity-60' : ''}`}>

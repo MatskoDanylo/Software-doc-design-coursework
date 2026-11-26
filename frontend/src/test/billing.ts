@@ -2,7 +2,7 @@ import type { Payment, PaymentOutcome, Plan } from '../types/billing'
 
 export const freePlan: Plan = {
   code: 'free',
-  name: 'Free',
+  name: 'Безкоштовний',
   price: '0.00',
   currency: 'UAH',
   duration_days: null,
@@ -14,7 +14,7 @@ export const freePlan: Plan = {
 
 export const premiumPlan: Plan = {
   code: 'premium',
-  name: 'Premium',
+  name: 'Преміум',
   price: '99.00',
   currency: 'UAH',
   duration_days: 30,

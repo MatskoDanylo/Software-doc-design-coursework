@@ -19,5 +19,6 @@ export function useCsvExport(kind: ReportKind, params: ReportParams) {
   return useMutation({
     mutationFn: () => adminReportsApi.csv(kind, params),
     onSuccess: ({ blob, filename }) => saveFile(blob, filename ?? `${kind}_${params.dateFrom}_${params.dateTo}.csv`),
+    meta: { errorToast: true },
   })
 }

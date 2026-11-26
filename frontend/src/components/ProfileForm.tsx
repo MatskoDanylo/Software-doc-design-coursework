@@ -32,6 +32,7 @@ export default function ProfileForm({ user, onSaved }: ProfileFormProps) {
     mutationFn: usersApi.updateMe,
     onSuccess: onSaved,
     onError: form.applyServerErrors,
+    meta: { successToast: 'Зміни в профілі збережено' },
   })
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -46,9 +47,7 @@ export default function ProfileForm({ user, onSaved }: ProfileFormProps) {
     <section className={card}>
       <h2 className="font-display text-xl font-semibold">Редагування профілю</h2>
       <form noValidate onSubmit={handleSubmit} className="mt-6 space-y-4">
-        {mutation.isError && <FormAlert>{errorMessage(mutation.error)}</FormAlert>}
-        {mutation.isSuccess && <FormAlert tone="success">Зміни збережено</FormAlert>}
-        <FormField label="Імʼя" autoComplete="nickname" {...form.bind('display_name')} />
+        {mutation.isError && <FormAlert>{errorMessage(mutation.error)}</FormAlert>}        <FormField label="Імʼя" autoComplete="nickname" {...form.bind('display_name')} />
         <FormField
           label="Посилання на аватар"
           type="url"

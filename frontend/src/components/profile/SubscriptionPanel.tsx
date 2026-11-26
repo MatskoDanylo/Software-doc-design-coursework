@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { errorMessage } from '../../api/errors'
 import { useCancelSubscription } from '../../billing/mutations'
 import { planFeatures } from '../../billing/planFeatures'
 import { PLAN_LABELS } from '../../billing/planLabels'
@@ -8,7 +7,6 @@ import { formatDate } from '../../format/datetime'
 import { sentence } from '../../format/text'
 import type { Subscription } from '../../types/user'
 import ConfirmButton from '../admin/ConfirmButton'
-import FormAlert from '../FormAlert'
 import { buttonOutline, buttonPrimary, card } from '../ui'
 
 function statusText({ plan_code, expires_at, cancelled }: Subscription): string {
@@ -23,21 +21,20 @@ function SubscriptionActions({ subscription }: { subscription: Subscription }) {
   if (subscription.plan_code === 'free' || subscription.cancelled) {
     return (
       <Link to="/pricing" className={buttonPrimary}>
-        {subscription.cancelled ? 'Відновити Premium' : 'Оформити Premium'}
+        {subscription.cancelled ? 'Відновити Преміум' : 'Оформити Преміум'}
       </Link>
     )
   }
   const until = subscription.expires_at ? formatDate(subscription.expires_at) : ''
   return (
     <div className="space-y-3">
-      {cancel.isError && <FormAlert>{errorMessage(cancel.error)}</FormAlert>}
       <div className="flex flex-wrap items-center gap-3">
         <Link to="/pricing" className={buttonOutline}>
           Продовжити
         </Link>
         <ConfirmButton
           label="Скасувати підписку"
-          question={sentence(`Скасувати Premium? Доступ збережеться до ${until}`)}
+          question={sentence(`Скасувати Преміум? Доступ збережеться до ${until}`)}
           confirmLabel="Так, скасувати"
           pendingLabel="Скасування…"
           dismissLabel="Ні"

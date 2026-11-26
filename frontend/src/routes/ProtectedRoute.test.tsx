@@ -19,7 +19,7 @@ describe('ProtectedRoute', () => {
     mockApi({ '/api/auth/login': testTokens, '/api/users/me': testUser })
     renderApp('/profile')
 
-    fireEvent.change(await screen.findByLabelText('Email'), { target: { value: testUser.email } })
+    fireEvent.change(await screen.findByLabelText('Електронна пошта'), { target: { value: testUser.email } })
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Увійти' }))
 

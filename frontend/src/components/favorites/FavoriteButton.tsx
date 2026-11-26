@@ -1,5 +1,4 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { errorMessage } from '../../api/errors'
 import { useAuth } from '../../auth/useAuth'
 import { useFavoriteToggle } from '../../favorites/useFavoriteToggle'
 import type { RedirectState } from '../../routes/redirect'
@@ -22,7 +21,7 @@ export default function FavoriteButton({ title, variant = 'icon', className = ''
   const location = useLocation()
   const toggle = useFavoriteToggle()
   const favorite = title.is_favorite
-  const label = favorite ? `Прибрати «${title.name}» з вибраного` : `Додати «${title.name}» у вибране`
+  const label = favorite ? `Прибрати «${title.name}» з Вибраного` : `Додати «${title.name}» у Вибране`
 
   const handleClick = () => {
     if (status !== 'authenticated') {
@@ -50,23 +49,16 @@ export default function FavoriteButton({ title, variant = 'icon', className = ''
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
-      <button
-        type="button"
-        aria-label={label}
-        aria-pressed={favorite}
-        disabled={status === 'loading'}
-        onClick={handleClick}
-        className={`${buttonOutline} ${favorite ? 'border-gold/60 text-gold' : ''}`}
-      >
-        <HeartIcon filled={favorite} className="size-4" />
-        {favorite ? 'У вибраному' : 'У вибране'}
-      </button>
-      {toggle.isError && (
-        <span role="alert" className="text-xs text-danger">
-          {errorMessage(toggle.error)}
-        </span>
-      )}
-    </div>
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={favorite}
+      disabled={status === 'loading'}
+      onClick={handleClick}
+      className={`${buttonOutline} ${favorite ? 'border-gold/60 text-gold' : ''} ${className}`}
+    >
+      <HeartIcon filled={favorite} className="size-4" />
+      {favorite ? 'У Вибраному' : 'У Вибране'}
+    </button>
   )
 }

@@ -36,8 +36,8 @@ function mockCatalog(routes: Record<string, unknown>) {
   })
 }
 
-const addLabel = 'Додати «Тестовий фільм» у вибране'
-const removeLabel = 'Прибрати «Тестовий фільм» з вибраного'
+const addLabel = 'Додати «Тестовий фільм» у Вибране'
+const removeLabel = 'Прибрати «Тестовий фільм» з Вибраного'
 
 describe('FavoriteButton', () => {
   it('marks the title as favorite before the server answers', async () => {
@@ -78,7 +78,7 @@ describe('FavoriteButton', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: removeLabel }))
 
-    expect(await screen.findByText('У вибраному поки порожньо')).toBeInTheDocument()
+    expect(await screen.findByText('У Вибраному поки порожньо')).toBeInTheDocument()
     server.resolve(new Response(null, { status: 204 }))
   })
 

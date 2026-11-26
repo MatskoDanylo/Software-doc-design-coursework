@@ -13,7 +13,7 @@ export default function PaymentPending({ payment }: { payment: Payment }) {
       {submit.isError && <FormAlert>{errorMessage(submit.error)}</FormAlert>}
       <StateMessage
         title="Оплата очікує підтвердження"
-        text="Банк ще перевіряє платіж. Premium активується одразу після підтвердження, а поки діє ваш поточний план. У тестовому режимі відповідь банку можна задати тут."
+        text="Банк ще перевіряє платіж. Преміум активується одразу після підтвердження, а поки діє ваш поточний план. У тестовому режимі відповідь банку можна задати тут."
         action={
           <div className="flex flex-wrap justify-center gap-3">
             <button

@@ -17,5 +17,6 @@ export function useSaveSettings() {
       void client.invalidateQueries({ queryKey: recommendationKeys.all })
       void client.invalidateQueries({ queryKey: adminReportKeys.all })
     },
+    meta: { successToast: 'Налаштування збережено. Рекомендації й звіти вже використовують нові значення.' },
   })
 }

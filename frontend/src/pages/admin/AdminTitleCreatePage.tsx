@@ -2,32 +2,37 @@ import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { adminCatalogApi } from '../../api/adminCatalog'
 import { errorMessage } from '../../api/errors'
-import type { AdminNotice } from '../../admin/notice'
 import type { TitleSubmit } from '../../admin/titleForm'
 import { useInvalidateCatalog } from '../../admin/useInvalidateCatalog'
 import TitleForm from '../../components/admin/TitleForm'
 import { card, textLink } from '../../components/ui'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
+import { toast } from '../../toast/store'
 
 async function createWithPoster({ payload, poster }: TitleSubmit) {
   const title = await adminCatalogApi.createTitle(payload)
-  if (!poster) return { title, notice: { tone: 'success', text: 'Тайтл створено' } satisfies AdminNotice }
+  if (!poster) {
+    toast.success('Тайтл створено')
+    return title
+  }
   try {
     await adminCatalogApi.uploadPoster(title.id, poster)
-    return { title, notice: { tone: 'success', text: 'Тайтл створено, постер завантажено' } satisfies AdminNotice }
+    toast.success('Тайтл створено, постер завантажено')
   } catch (error) {
-    const text = `Тайтл створено, але постер не завантажено: ${errorMessage(error)}`
-    return { title, notice: { tone: 'error', text } satisfies AdminNotice }
+    toast.error(`Тайтл створено, але постер не завантажено: ${errorMessage(error)}`)
   }
+  return title
 }
 
 export default function AdminTitleCreatePage() {
+  useDocumentTitle('Новий тайтл — Адмінка')
   const navigate = useNavigate()
   const invalidate = useInvalidateCatalog()
   const create = useMutation({
     mutationFn: createWithPoster,
-    onSuccess: ({ title, notice }) => {
+    onSuccess: (title) => {
       void invalidate()
-      navigate(`/admin/titles/${title.id}`, { replace: true, state: { notice } })
+      navigate(`/admin/titles/${title.id}`, { replace: true })
     },
   })
 

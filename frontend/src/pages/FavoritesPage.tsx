@@ -6,6 +6,7 @@ import TitleGrid, { TitleGridSkeleton } from '../components/catalog/TitleGrid'
 import Pagination from '../components/Pagination'
 import StateMessage from '../components/StateMessage'
 import { buttonOutline } from '../components/ui'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 function readPage(value: string | null): number {
   const page = Number(value)
@@ -21,6 +22,7 @@ function CatalogLink() {
 }
 
 export default function FavoritesPage() {
+  useDocumentTitle('Вибране')
   const [params, setParams] = useSearchParams()
   const page = readPage(params.get('page'))
   const query = useQuery({
@@ -42,12 +44,12 @@ export default function FavoritesPage() {
         {query.data && query.data.total > 0 && <p className="text-sm text-muted">{query.data.total} тайтл(ів)</p>}
       </div>
       {query.isError ? (
-        <StateMessage tone="error" title="Не вдалося завантажити вибране" text={errorMessage(query.error)} />
+        <StateMessage tone="error" title="Не вдалося завантажити Вибране" text={errorMessage(query.error)} />
       ) : !query.data ? (
         <TitleGridSkeleton />
       ) : query.data.items.length === 0 && page === 1 ? (
         <StateMessage
-          title="У вибраному поки порожньо"
+          title="У Вибраному поки порожньо"
           text="Натисніть на сердечко на картці фільму чи серіалу, щоб зберегти його тут"
           action={<CatalogLink />}
         />

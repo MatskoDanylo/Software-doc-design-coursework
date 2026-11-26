@@ -5,8 +5,10 @@ import PlanAction from '../components/billing/PlanAction'
 import PlanCard from '../components/billing/PlanCard'
 import PageLoader from '../components/PageLoader'
 import StateMessage from '../components/StateMessage'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export default function PricingPage() {
+  useDocumentTitle('Тарифи')
   const { user, status } = useAuth()
   const plans = usePlans()
 
@@ -20,7 +22,7 @@ export default function PricingPage() {
     <section className="space-y-8">
       <header>
         <h1 className="font-display text-3xl font-semibold">Тарифи</h1>
-        <p className="mt-2 text-muted">Free з рекламою або Premium без реклами у вищій якості</p>
+        <p className="mt-2 text-muted">Безкоштовний з рекламою або Преміум без реклами у вищій якості</p>
       </header>
       <div className="grid gap-6 md:grid-cols-2">
         {plans.data.map((plan) => (

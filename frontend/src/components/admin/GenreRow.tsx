@@ -1,7 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import { adminCatalogApi } from '../../api/adminCatalog'
-import { errorMessage } from '../../api/errors'
 import { GENRE_KEYS, GENRE_NAME_MAX, nameError } from '../../admin/catalogForms'
 import { useInvalidateCatalog } from '../../admin/useInvalidateCatalog'
 import type { Genre } from '../../types/catalog'
@@ -18,10 +17,12 @@ export default function GenreRow({ genre }: { genre: Genre }) {
       setEditing(false)
       return invalidate(GENRE_KEYS)
     },
+    meta: { successToast: 'Жанр перейменовано' },
   })
   const remove = useMutation({
     mutationFn: () => adminCatalogApi.deleteGenre(genre.id),
     onSuccess: () => invalidate(GENRE_KEYS),
+    meta: { successToast: `Жанр «${genre.name}» видалено`, errorToast: true },
   })
 
   return (
@@ -43,9 +44,7 @@ export default function GenreRow({ genre }: { genre: Genre }) {
       ) : (
         <>
           <span className="font-medium text-zinc-100">{genre.name}</span>
-          <div className="flex flex-wrap items-center gap-2">
-            {remove.isError && <span className="text-xs text-danger">{errorMessage(remove.error)}</span>}
-            <button type="button" className={`${buttonGhost} ${buttonSmall}`} onClick={() => setEditing(true)}>
+          <div className="flex flex-wrap items-center gap-2">            <button type="button" className={`${buttonGhost} ${buttonSmall}`} onClick={() => setEditing(true)}>
               Перейменувати
             </button>
             <ConfirmButton

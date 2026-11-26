@@ -18,6 +18,7 @@ export function useStartCheckout() {
       await client.invalidateQueries({ queryKey: billingKeys.payments })
       navigate(checkoutPath(result.payment_id))
     },
+    meta: { errorToast: true },
   })
 }
 
@@ -43,5 +44,9 @@ export function useSubmitPaymentResult(paymentId: number) {
 
 export function useCancelSubscription() {
   const refreshPlan = usePlanRefresh()
-  return useMutation({ mutationFn: subscriptionsApi.cancel, onSuccess: refreshPlan })
+  return useMutation({
+    mutationFn: subscriptionsApi.cancel,
+    onSuccess: refreshPlan,
+    meta: { successToast: 'Підписку скасовано. Преміум діятиме до кінця оплаченого періоду', errorToast: true },
+  })
 }

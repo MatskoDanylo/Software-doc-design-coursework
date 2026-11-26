@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { callsTo, errorResponse, mockApi, renderApp, signedInAs, testAdmin, type RouteHandler } from '../../test/utils'
 import type { AppSettings, AppSettingsPayload } from '../../types/settings'
@@ -68,9 +68,6 @@ describe('AdminSettingsPage', () => {
       popularity_window_days: 30,
       report_timezone: 'Europe/Kyiv',
     })
-
-    fireEvent.change(screen.getByLabelText('Вікно популярності, днів'), { target: { value: '31' } })
-    await waitFor(() => expect(screen.queryByText(/Налаштування збережено/)).not.toBeInTheDocument())
   })
 
   it('shows server errors next to the fields', async () => {

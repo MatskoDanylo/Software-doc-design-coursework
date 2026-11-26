@@ -8,12 +8,12 @@ describe('PricingPage', () => {
     mockApi({ '/api/plans': plans })
     renderApp('/pricing')
 
-    const premium = await screen.findByRole('article', { name: 'Premium' })
+    const premium = await screen.findByRole('article', { name: 'Преміум' })
     expect(within(premium).getByText('Якість до 1080p')).toBeInTheDocument()
     expect(within(premium).getByText('Без реклами')).toBeInTheDocument()
-    expect(within(screen.getByRole('article', { name: 'Free' })).getByText('Реклама перед відео')).toBeInTheDocument()
+    expect(within(screen.getByRole('article', { name: 'Безкоштовний' })).getByText('Реклама перед відео')).toBeInTheDocument()
 
-    fireEvent.click(within(premium).getByRole('link', { name: 'Оформити Premium' }))
+    fireEvent.click(within(premium).getByRole('link', { name: 'Оформити Преміум' }))
     expect(currentUrl().pathname).toBe('/login')
   })
 
@@ -28,9 +28,9 @@ describe('PricingPage', () => {
     })
     renderApp('/pricing')
 
-    const free = await screen.findByRole('article', { name: 'Free' })
+    const free = await screen.findByRole('article', { name: 'Безкоштовний' })
     expect(within(free).getByText('Ваш план')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Оформити Premium' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Оформити Преміум' }))
 
     await waitFor(() => expect(currentUrl().pathname).toBe('/checkout/5'))
     expect(callsTo(fetchMock, 'POST', '/api/billing/checkout')).toHaveLength(1)
@@ -40,8 +40,8 @@ describe('PricingPage', () => {
     mockApi({ ...signedInAs(testPremiumUser), '/api/plans': plans, '/api/notifications': { items: [], unread: 0 } })
     renderApp('/pricing')
 
-    const premium = await screen.findByRole('article', { name: 'Premium' })
+    const premium = await screen.findByRole('article', { name: 'Преміум' })
     expect(within(premium).getByText('Ваш план')).toBeInTheDocument()
-    expect(within(premium).getByRole('button', { name: 'Продовжити Premium' })).toBeInTheDocument()
+    expect(within(premium).getByRole('button', { name: 'Продовжити Преміум' })).toBeInTheDocument()
   })
 })

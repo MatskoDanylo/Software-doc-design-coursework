@@ -10,7 +10,7 @@ export const OUTCOMES: OutcomeOption[] = [
   {
     value: 'success',
     label: 'Успішна оплата',
-    description: 'Банк одразу підтверджує платіж, Premium активується миттєво.',
+    description: 'Банк одразу підтверджує платіж, Преміум активується миттєво.',
   },
   {
     value: 'pending',

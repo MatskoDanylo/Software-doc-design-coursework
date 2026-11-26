@@ -26,7 +26,7 @@ describe('CheckoutPage', () => {
     renderApp('/checkout/7')
 
     expect(await screen.findByRole('note')).toHaveTextContent('Тестова оплата')
-    expect(screen.getByText('Premium')).toBeInTheDocument()
+    expect(screen.getByText('Преміум')).toBeInTheDocument()
     expect(screen.getByText('99 грн')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Успішна оплата' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Очікує підтвердження' })).toHaveAccessibleDescription(/ще перевіряє платіж/)

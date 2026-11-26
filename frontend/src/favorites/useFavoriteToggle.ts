@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { favoritesApi, favoritesKeys } from '../api/favorites'
+import { toast } from '../toast/store'
 import { applyFavorite, FAVORITE_AWARE_KEYS, restoreSnapshot, snapshotFavorites } from './cache'
 
 export interface FavoriteChange {
@@ -19,9 +20,13 @@ export function useFavoriteToggle() {
       applyFavorite(client, titleId, favorite)
       return { snapshot }
     },
+    onSuccess: (_data, { favorite }) => {
+      toast.success(favorite ? 'Додано у Вибране' : 'Прибрано з Вибраного')
+    },
     onError: (_error, _change, context) => {
       if (context) restoreSnapshot(client, context.snapshot)
     },
     onSettled: () => client.invalidateQueries({ queryKey: favoritesKeys.all }),
+    meta: { errorToast: true },
   })
 }

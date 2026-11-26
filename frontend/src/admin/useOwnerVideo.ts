@@ -26,5 +26,6 @@ export function useVideoUpload(owner: VideoOwner) {
       client.setQueryData(adminVideoKeys.owner(owner), asset)
       void client.invalidateQueries({ queryKey: playbackKeys.all })
     },
+    meta: { successToast: 'Відео завантажено. Конвертація триває у фоні' },
   })
 }

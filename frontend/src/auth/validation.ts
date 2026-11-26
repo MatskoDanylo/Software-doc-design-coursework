@@ -13,8 +13,8 @@ const URL_FORMAT_ERROR = 'Вкажіть посилання у форматі ht
 
 function emailError(value: string): string | undefined {
   const email = value.trim()
-  if (!email) return 'Вкажіть email'
-  if (!EMAIL_PATTERN.test(email)) return 'Некоректний email'
+  if (!email) return 'Вкажіть електронну пошту'
+  if (!EMAIL_PATTERN.test(email)) return 'Некоректна адреса електронної пошти'
   return undefined
 }
 

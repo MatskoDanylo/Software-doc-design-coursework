@@ -7,9 +7,10 @@ import { GENRE_KEYS, GENRE_NAME_MAX, nameError } from '../../admin/catalogForms'
 import { useInvalidateCatalog } from '../../admin/useInvalidateCatalog'
 import GenreRow from '../../components/admin/GenreRow'
 import InlineTextForm from '../../components/admin/InlineTextForm'
-import PageLoader from '../../components/PageLoader'
+import { ListSkeleton } from '../../components/Skeletons'
 import StateMessage from '../../components/StateMessage'
 import { card } from '../../components/ui'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 
 function AddGenre() {
   const [formKey, setFormKey] = useState(0)
@@ -20,6 +21,7 @@ function AddGenre() {
       setFormKey((key) => key + 1)
       return invalidate(GENRE_KEYS)
     },
+    meta: { successToast: 'Жанр додано' },
   })
 
   return (
@@ -37,6 +39,7 @@ function AddGenre() {
 }
 
 export default function AdminGenresPage() {
+  useDocumentTitle('Жанри — Адмінка')
   const genres = useQuery({ queryKey: catalogKeys.genres, queryFn: catalogApi.genres })
 
   return (
@@ -44,7 +47,7 @@ export default function AdminGenresPage() {
       <h1 className="font-display text-3xl font-semibold">Жанри</h1>
       <div className={`${card} space-y-4`}>
         <AddGenre />
-        {genres.isPending && <PageLoader />}
+        {genres.isPending && <ListSkeleton />}
         {genres.isError && <StateMessage tone="error" title="Не вдалося завантажити жанри" text={errorMessage(genres.error)} />}
         {genres.data?.length === 0 && <p className="text-sm text-muted">Жанрів ще немає</p>}
         {genres.data && genres.data.length > 0 && (

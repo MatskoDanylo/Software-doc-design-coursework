@@ -3,8 +3,8 @@ import type { PlanCode } from '../../types/playback'
 import { textLink } from '../ui'
 
 const BADGE: Record<PlanCode, { label: string; className: string }> = {
-  free: { label: 'Free', className: 'border-line text-zinc-300' },
-  premium: { label: 'Premium', className: 'border-gold/50 bg-gold/10 text-gold' },
+  free: { label: 'Безкоштовний', className: 'border-line text-zinc-300' },
+  premium: { label: 'Преміум', className: 'border-gold/50 bg-gold/10 text-gold' },
 }
 
 export default function PlanBadge({ plan }: { plan: PlanCode | null }) {

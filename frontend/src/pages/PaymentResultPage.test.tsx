@@ -40,10 +40,10 @@ describe('PaymentResultPage', () => {
 
     expect(await screen.findByText('Оплату прийнято')).toBeInTheDocument()
     expect(
-      await screen.findByText('План Premium активний до 25 грудня 2026 р. Відео без реклами, якість до 1080p.'),
+      await screen.findByText('План Преміум активний до 25 грудня 2026 р. Відео без реклами, якість до 1080p.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '▶ Дивитись' })).toHaveAttribute('href', '/catalog')
-    expect(screen.getByRole('link', { name: 'Ваш план: Premium' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ваш план: Преміум' })).toBeInTheDocument()
   })
 
   it('lets the user confirm a pending payment and refreshes the plan', async () => {
@@ -51,12 +51,12 @@ describe('PaymentResultPage', () => {
     renderApp('/payments/7/result')
 
     expect(await screen.findByText('Оплата очікує підтвердження')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ваш план: Free' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ваш план: Безкоштовний' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Підтвердити оплату' }))
 
     expect(await screen.findByText('Оплату прийнято')).toBeInTheDocument()
     expect(outcomeFrom(callsTo(fetchMock, 'POST', '/api/billing/payments/7/mock-result')[0].init)).toBe('success')
-    expect(await screen.findByRole('link', { name: 'Ваш план: Premium' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Ваш план: Преміум' })).toBeInTheDocument()
     expect(callsTo(fetchMock, 'GET', '/api/users/me').length).toBeGreaterThan(1)
   })
 
