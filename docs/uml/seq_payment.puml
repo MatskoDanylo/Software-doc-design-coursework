@@ -80,7 +80,7 @@ else outcome = pending
   EB -> NS : handle(event, session)
   NS -> DB : INSERT notifications (payment_pending)
   R --> SPA : 200 PaymentRead {status: "pending"}
-  note over R, BS : Пізніше адміністратор: POST /api/admin/payments/{id}/resolve\n→ BillingService.resolve(success | failed) → той самий _settle()\nі ті самі гілки success / failed
+  note over R, BS : Пізніше: повторний mock-result користувача або адміністратор\nPOST /api/admin/payments/{id}/resolve → BillingService.resolve(success | failed)\n→ той самий _settle() і ті самі гілки success / failed\n(повтор pending подій не публікує)
 else outcome = failed
   MP --> AD : state "DECLINED"
   AD --> BS : GatewayPayment(status=FAILED)

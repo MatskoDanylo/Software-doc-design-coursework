@@ -18,6 +18,21 @@ docker run --rm -e PLANTUML_LIMIT_SIZE=8192 -v "${PWD}/docs/uml:/data" plantuml/
 класів (5382 px завширшки) обрізається. Файл `_style.iuml` маска `*.puml` не зачіпає, він підключається через
 `!include`.
 
+## Зміст
+
+| Діаграма | Файл | Тип UML | Що показує |
+|---|---|---|---|
+| Прецеденти | `use_cases` | Use Case | актори, прецеденти за пакетами, `<<include>>` / `<<extend>>` |
+| Оглядова діаграма класів | `classes_overview` | класів | сім GoF-патернів у кольорах і сервіси, що ними користуються |
+| Шар API | `classes_layer_api` | класів | роутери з ендпоінтами → сервіси |
+| Шари сервісів і даних | `classes_layer_data` | класів | сервіси → порти → репозиторії та інфраструктура (DIP) |
+| Доменна модель | `classes_domain` | класів | моделі SQLAlchemy з кратністю зв'язків |
+| Builder … Template Method | `pattern_*` (7 файлів) | класів | кожен патерн окремо з ролями GoF і примітками |
+| Фізична модель БД | `er` | ER | таблиці, PK/FK, унікальні обмеження, індекси |
+| Оплата | `seq_payment` | послідовності | checkout → шлюз → події → Premium, гілки success / pending / failed |
+| Перегляд | `seq_playback` | послідовності | «Дивитись» → проксі → реклама → master.m3u8 → сегменти HLS |
+| Компоненти і розгортання | `components` | компонентів / розгортання | браузер, Vite, FastAPI, PostgreSQL, ffmpeg, `media/` і протоколи |
+
 ## Діаграми
 
 ### Use Case — `use_cases.png`
@@ -53,6 +68,45 @@ docker run --rm -e PLANTUML_LIMIT_SIZE=8192 -v "${PWD}/docs/uml:/data" plantuml/
 і публікує події в Observer, а `BillingService` об'єднує Factory Method, Adapter і Observer.
 
 Повна діаграма всіх шарів на одному аркуші (60+ класів) виходила нечитабельною, тому шари показано окремо нижче.
+
+#### Патерни на діаграмі
+
+| Патерн | Колір | Класи (роль GoF) | Навіщо в застосунку |
+|---|---|---|---|
+| Factory Method | коричневий `#C8A27A` | `PlanPolicyCreator` (Creator); `FreePlanCreator`, `PremiumPlanCreator` (ConcreteCreator); `PlanPolicy` (Product); `FreePlanPolicy`, `PremiumPlanPolicy` (ConcreteProduct); `PlanPolicyRegistry` | правила плану (реклама, якість, ціна, тривалість, дозволені переходи) в одному місці для оплати, підписок і плеєра; новий план без змін у сервісах |
+| Template Method | жовтий `#FFF27A` | `ReportGenerator` (AbstractClass); `PopularTitlesReport`, `UserActivityReport`, `SubscriptionRevenueReport` (ConcreteClass) | однаковий порядок кроків для всіх звітів: період і часовий пояс, збір, агрегація, підсумок, секції; підкласи змінюють лише кроки й гачки |
+| Observer | зелений `#8EE08E` | `EventBus` (Subject); `EventHandler` (Observer); `SubscriptionActivator`, `NotificationService`, `TitleStatsUpdater` (ConcreteObserver) | наслідки оплати й перегляду (підписка, сповіщення, статистика) без залежності видавця від спостерігачів, в одній транзакції |
+| Builder | помаранчевий `#FFB347` | `CatalogService` (Director); `TitleQueryBuilder` (Builder); `TitleQuery` (Product) | сім необов'язкових фільтрів, сортування й пагінація каталогу збираються в узгоджену пару запитів з перевіркою параметрів |
+| Strategy | блакитний `#8FD3FF` | `RecommendationService` (Context); `RecommendationStrategy` (Strategy); `PopularityStrategy`, `GenreAffinityStrategy`, `SimilarTitlesStrategy`, `HybridStrategy` (ConcreteStrategy); `StrategyRegistry` | алгоритм рекомендацій, ваги гібрида й вікно популярності обирає адміністратор у налаштуваннях без зміни коду |
+| Proxy | фіолетовий `#C9A7FF` | `PlaybackService` (Subject); `RealPlaybackService` (RealSubject); `PlaybackProxy` (Proxy) | перевірка входу, обмеження якості за планом і реклама для Free перед видачею стріму, прозоро для роутера |
+| Adapter | червоний `#FF9B9B` | `PaymentGateway`, `PaymentSimulator` (Target); `MockGatewayAdapter` (Adapter); `MockPaymentProvider` (Adaptee) | `BillingService` не залежить від API провайдера (копійки, коди валют, рядкові стани); реальний банк — новий адаптер |
+
+#### Як патерни працюють разом
+
+**Оплата → Observer → Factory Method → Proxy.** `BillingService.checkout()` бере в Factory Method ціну і дозвіл на
+перехід Free → Premium, а через Adapter відкриває рахунок у провайдера. Коли користувач обирає success, адаптер
+переводить стан `OK` у `PaymentStatus.SUCCESS`, і сервіс публікує `PaymentSucceeded`. Спостерігач
+`SubscriptionActivator` викликає `SubscriptionService.grant()`, який знову через Factory Method дізнається тривалість
+Premium (30 днів) і публікує `SubscriptionActivated` для `NotificationService`. Наступний запит відтворення проходить
+через `PlaybackProxy`: той питає `SubscriptionService.policy_for()`, а ця політика побудована тим самим
+`PremiumPlanCreator.build_playback_policy()`, тож плеєр отримує 1080p без реклами. Жодна ланка не знає про
+наступну: їх з'єднують `PaymentGateway`, `EventPublisher` / `EventHandler` і `PlaybackPolicyProvider`.
+
+**Перегляд → Observer → статистика → Strategy.** Плеєр кожні 10 с надсилає прогрес. На переході «не завершено →
+завершено» `HistoryService` публікує `WatchFinished`, а `TitleStatsUpdater` оновлює `title_stats` і
+`title_viewers`. `RecommendationRepository.popular()` бере ці агрегати як загальну популярність тайтла:
+`PopularityStrategy` ранжує за ними, коли в обраному вікні переглядів немає, і розв'язує ними нічиї, а
+`HybridStrategy` змішує популярність із жанровими вподобаннями та схожістю з вагами з `app_settings`.
+
+**Звіти (Template Method) читають дані Observer і Adapter.** `SubscriptionRevenueReport` рахує дохід, платежі за
+статусами й платників із `payments.status` і `payments.paid_at`. Ці поля `BillingService` заповнює за результатом,
+який повернув адаптер шлюзу. Кількість активних Premium звіт і дашборд беруть із `subscriptions`. Ці записи створює
+спостерігач `SubscriptionActivator` після оплати, а також адміністратор, коли видає Premium вручну. `PopularTitlesReport` і `UserActivityReport` читають `watch_history` і
+`favorites` напряму, бо їм потрібні значення за довільний період, а `title_stats` зберігає лише підсумок за весь час.
+Порядок кроків у всіх трьох звітах однаковий, тому часовий пояс із налаштувань (`SettingsService`) і CSV-експорт
+працюють для кожного звіту без окремого коду.
+
+Builder живе окремо: каталог лише читає ті самі таблиці й від інших патернів не залежить.
 
 ### Шар API — `classes_layer_api.png`
 
